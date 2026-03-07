@@ -43,6 +43,10 @@ class ScreenMirroringApp {
         document.getElementById('displayRoomId').textContent = `Room: ${roomId}`;
         document.getElementById('connectionStatusText').textContent = status;
         
+        // Show action bar
+        const actionBar = document.querySelector('.action-bar');
+        if (actionBar) actionBar.style.display = 'flex';
+        
         // Hide setup overlays
         document.getElementById('presenterSetup').style.display = 'none';
         document.getElementById('studentSetup').style.display = 'none';
