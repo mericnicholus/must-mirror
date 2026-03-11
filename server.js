@@ -24,7 +24,8 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Allow all origins for local network access
+    //origin: "*", // Allow all origins for local network access
+    origin: ["https://must-mirror.vercel.app", "http://localhost:3000"],
     methods: ["GET", "POST"]
   }
 });

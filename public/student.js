@@ -12,7 +12,13 @@ class Student {
     }
 
     initializeSocket() {
-        this.socket = io();
+        // Connect to different servers based on environment
+        const isProduction = window.location.hostname !== 'localhost';
+        const serverUrl = isProduction 
+            ? 'https://must-mirror.onrender.com' // Replace with your actual Render URL
+            : 'http://localhost:3000';
+        
+        this.socket = io(serverUrl);
 
         this.socket.on('connect', () => this.socketId = this.socket.id);
 
