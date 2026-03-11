@@ -1,16 +1,44 @@
 // WebRTC utility functions and configuration
 class WebRTCUtils {
     constructor() {
-        // STUN servers for NAT traversal (optimized for local networks)
+        // Detect if we're offline or on local network
+        const isOffline = !navigator.onLine || window.location.hostname === 'localhost';
+        
+        // STUN/TURN servers for NAT traversal
         this.configuration = {
-            iceServers: [
-                // Local network STUN (faster for offline use)
+            iceServers: isOffline ? [
+                // Offline/local mode - minimal configuration
+                // WebRTC will use host candidates (local IPs)
+            ] : [
+                // Online mode - full STUN/TURN support
+                // Google STUN servers (free and reliable)
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                // Fallback STUN servers
                 { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' }
+                
+                // Public TURN servers (free tier - for production, consider paid services)
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                
+                // Additional TURN servers as backup
+                {
+                    urls: 'turn:turn.relay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:turn.relay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
             ]
         };
         
@@ -32,7 +60,28 @@ class WebRTCUtils {
 
     // Create RTCPeerConnection with configuration
     createPeerConnection() {
-        return new RTCPeerConnection(this.configuration);
+        const pc = new RTCPeerConnection(this.configuration);
+        
+        // Add connection state monitoring for debugging
+        pc.onconnectionstatechange = () => {
+            console.log('WebRTC Connection State:', pc.connectionState);
+            if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                console.error('WebRTC connection failed/disconnected');
+            }
+        };
+        
+        pc.oniceconnectionstatechange = () => {
+            console.log('ICE Connection State:', pc.iceConnectionState);
+            if (pc.iceConnectionState === 'failed') {
+                console.error('ICE connection failed - check TURN servers');
+            }
+        };
+        
+        pc.onicegatheringstatechange = () => {
+            console.log('ICE Gathering State:', pc.iceGatheringState);
+        };
+        
+        return pc;
     }
 
     // Generate random room ID

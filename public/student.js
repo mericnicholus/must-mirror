@@ -208,7 +208,7 @@ class Student {
     async handleOffer(data) {
         let pc = this.peerConnections.get(data.sender);
         if (!pc) {
-            pc = new RTCPeerConnection();
+            pc = webrtcUtils.createPeerConnection(); // Use WebRTC configuration
             this.peerConnections.set(data.sender, pc);
             
             pc.onicecandidate = (e) => {

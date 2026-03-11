@@ -63,7 +63,7 @@ class Presenter {
         this.socket.on('offer', async (data) => {
             let pc = this.peerConnections.get(data.sender);
             if (!pc) {
-                pc = new RTCPeerConnection();
+                pc = webrtcUtils.createPeerConnection(); // Use WebRTC configuration
                 this.peerConnections.set(data.sender, pc);
                 
                 pc.onicecandidate = (e) => {
@@ -182,7 +182,7 @@ class Presenter {
     }
 
     async connectToStudent(studentId) {
-        const pc = new RTCPeerConnection();
+        const pc = webrtcUtils.createPeerConnection(); // Use WebRTC configuration
         this.peerConnections.set(studentId, pc);
 
         if (this.screenStream) {
