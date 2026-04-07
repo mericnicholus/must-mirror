@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback - MUST Mirror</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feedback-container {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .header p {
+            color: #666;
+            margin: 8px 0 0 0;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .rating-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .rating-star {
+            font-size: 32px;
+            color: #ddd;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .rating-star:hover,
+        .rating-star.active {
+            color: #ffc107;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            margin-right: 10px;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .back-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="feedback-container">
+        <div class="header">
+            <h1>💬 Send Feedback</h1>
+            <p>Help us improve MUST Mirror by sharing your experience</p>
+        </div>
+
+        <div id="message"></div>
+
+        <form id="feedbackForm">
+            <div class="form-group">
+                <label for="name">Your Name *</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Your Email *</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="role">Your Role *</label>
+                <select id="role" name="role" required>
+                    <option value="">Select your role</option>
+                    <option value="presenter">Presenter/Lecturer</option>
+                    <option value="student">Student</option>
+                    <option value="admin">Administrator</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="roomId">Room ID (if applicable)</label>
+                <input type="text" id="roomId" name="roomId" placeholder="e.g., SOF-ERIC">
+            </div>
+
+            <div class="form-group">
+                <label for="feedbackType">Feedback Type *</label>
+                <select id="feedbackType" name="feedbackType" required>
+                    <option value="">Select feedback type</option>
+                    <option value="bug_report">🐛 Bug Report</option>
+                    <option value="feature_request">💡 Feature Request</option>
+                    <option value="general_feedback">💭 General Feedback</option>
+                    <option value="performance_issue">⚡ Performance Issue</option>
+                    <option value="ui_improvement">🎨 UI Improvement</option>
+                    <option value="content_quality">📚 Content Quality</option>
+                    <option value="connection_quality">🌐 Connection Quality</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="rating">Rating (Optional)</label>
+                <div class="rating-group" id="ratingGroup">
+                    <span class="rating-star" data-rating="1">⭐</span>
+                    <span class="rating-star" data-rating="2">⭐</span>
+                    <span class="rating-star" data-rating="3">⭐</span>
+                    <span class="rating-star" data-rating="4">⭐</span>
+                    <span class="rating-star" data-rating="5">⭐</span>
+                </div>
+                <input type="hidden" id="rating" name="rating" value="">
+            </div>
+
+            <div class="form-group">
+                <label for="subject">Subject *</label>
+                <input type="text" id="subject" name="subject" required placeholder="Brief description of your feedback">
+            </div>
+
+            <div class="form-group">
+                <label for="message">Detailed Message *</label>
+                <textarea id="message" name="message" required placeholder="Please provide detailed information about your feedback..."></textarea>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">
+                Submit Feedback
+            </button>
+        </form>
+
+        <div class="back-link">
+            <a href="index.html">← Back to MUST Mirror</a>
+        </div>
+    </div>
+
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('roomId');
+        const userEmail = urlParams.get('email');
+        const userName = urlParams.get('name');
+
+        // Pre-fill form if parameters provided
+        if (roomId) document.getElementById('roomId').value = roomId;
+        if (userEmail) document.getElementById('email').value = userEmail;
+        if (userName) document.getElementById('name').value = userName;
+
+        // Rating system
+        const ratingStars = document.querySelectorAll('.rating-star');
+        const ratingInput = document.getElementById('rating');
+        let currentRating = 0;
+
+        ratingStars.forEach(star => {
+            star.addEventListener('click', function() {
+                currentRating = parseInt(this.dataset.rating);
+                ratingInput.value = currentRating;
+                updateRatingStars();
+            });
+
+            star.addEventListener('mouseenter', function() {
+                const hoverRating = parseInt(this.dataset.rating);
+                ratingStars.forEach((s, index) => {
+                    if (index < hoverRating) {
+                        s.classList.add('active');
+                    } else {
+                        s.classList.remove('active');
+                    }
+                });
+            });
+        });
+
+        document.getElementById('ratingGroup').addEventListener('mouseleave', updateRatingStars);
+
+        function updateRatingStars() {
+            ratingStars.forEach((star, index) => {
+                if (index < currentRating) {
+                    star.classList.add('active');
+                } else {
+                    star.classList.remove('active');
+                }
+            });
+        }
+
+        // Form submission
+        document.getElementById('feedbackForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const messageDiv = document.getElementById('message');
+            
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            
+            // Clear previous messages
+            messageDiv.innerHTML = '';
+            
+            try {
+                // Collect form data
+                const formData = {
+                    name: document.getElementById('name').value,
+                    email: document.getElementById('email').value,
+                    role: document.getElementById('role').value,
+                    roomId: document.getElementById('roomId').value,
+                    feedbackType: document.getElementById('feedbackType').value,
+                    rating: currentRating || null,
+                    subject: document.getElementById('subject').value,
+                    message: document.getElementById('message').value,
+                    screenResolution: `${screen.width}x${screen.height}`,
+                    performanceData: {
+                        userAgent: navigator.userAgent,
+                        timestamp: new Date().toISOString(),
+                        url: window.location.href
+                    }
+                };
+                
+                // Submit feedback
+                const response = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = `
+                        <div class="success-message">
+                            ✅ Thank you for your feedback! Your message has been submitted successfully.
+                        </div>
+                    `;
+                    
+                    // Reset form
+                    document.getElementById('feedbackForm').reset();
+                    currentRating = 0;
+                    updateRatingStars();
+                    
+                    // Redirect back after 3 seconds
+                    setTimeout(() => {
+                        if (roomId) {
+                            window.location.href = `index.html?room=${roomId}`;
+                        } else {
+                            window.location.href = 'index.html';
+                        }
+                    }, 3000);
+                } else {
+                    throw new Error(result.error || 'Failed to submit feedback');
+                }
+            } catch (error) {
+                console.error('Error submitting feedback:', error);
+                messageDiv.innerHTML = `
+                    <div class="error-message">
+                        ❌ Failed to submit feedback: ${error.message}. Please try again.
+                    </div>
+                `;
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Feedback';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -4,19 +4,17 @@ class WebRTCUtils {
         // Detect if we're offline or on local network
         const isOffline = !navigator.onLine || window.location.hostname === 'localhost';
         
-        // STUN/TURN servers for NAT traversal
+        // Optimized STUN/TURN servers for faster connection
         this.configuration = {
             iceServers: isOffline ? [
-                // Offline/local mode - minimal configuration
-                // WebRTC will use host candidates (local IPs)
+                // Offline/local mode - optimized for local networks
+                { urls: 'stun:stun.l.google.com:19302' }
             ] : [
-                // Online mode - full STUN/TURN support
-                // Google STUN servers (free and reliable)
+                // Online mode - multiple STUN servers for faster ICE gathering
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
                 
-                // Public TURN servers (free tier - for production, consider paid services)
+                // Optimized TURN servers for better connectivity
                 {
                     urls: 'turn:openrelay.metered.ca:80',
                     username: 'openrelayproject',
@@ -26,28 +24,20 @@ class WebRTCUtils {
                     urls: 'turn:openrelay.metered.ca:443',
                     username: 'openrelayproject',
                     credential: 'openrelayproject'
-                },
-                
-                // Additional TURN servers as backup
-                {
-                    urls: 'turn:turn.relay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:turn.relay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
                 }
-            ]
+            ],
+            iceCandidatePoolSize: 10, // Pre-gather ICE candidates for faster connection
+            iceTransportPolicy: 'all', // Use all available transports
+            bundlePolicy: 'max-bundle', // Bundle all streams for efficiency
+            rtcpMuxPolicy: 'require' // Require RTCP multiplexing
         };
         
-        // Quality presets for automatic regulation
+        // Optimized quality presets for better performance
         this.qualityPresets = {
-            low: { width: 640, height: 480, frameRate: 15, bitrate: 500 },
-            medium: { width: 1280, height: 720, frameRate: 25, bitrate: 1500 },
-            high: { width: 1920, height: 1080, frameRate: 30, bitrate: 3000 },
-            auto: { width: 1280, height: 720, frameRate: 25, bitrate: 1500 }
+            low: { width: 640, height: 480, frameRate: 15, bitrate: 300 },
+            medium: { width: 1280, height: 720, frameRate: 20, bitrate: 1000 },
+            high: { width: 1920, height: 1080, frameRate: 25, bitrate: 2000 },
+            auto: { width: 1280, height: 720, frameRate: 20, bitrate: 1000 }
         };
         
         // Network monitoring
@@ -455,6 +445,144 @@ class WebRTCUtils {
         sender.setParameters({ encodings: [parameters] }).catch(e => {
             console.warn('Failed to set video parameters:', e);
         });
+    }
+
+    // Monitor connection performance
+    async monitorPerformance(peerConnection, callback) {
+        if (!peerConnection) return;
+
+        const statsInterval = setInterval(async () => {
+            try {
+                const stats = await peerConnection.getStats();
+                const performanceData = this.parseStats(stats);
+                
+                // Update network stats
+                this.networkStats = {
+                    bandwidth: performanceData.bandwidth || 0,
+                    latency: performanceData.latency || 0,
+                    packetLoss: performanceData.packetLoss || 0
+                };
+                
+                // Call callback with performance data
+                if (callback) callback(performanceData);
+                
+                // Auto-adjust quality based on performance
+                this.autoAdjustQuality(peerConnection, performanceData);
+                
+            } catch (error) {
+                console.error('Error getting performance stats:', error);
+            }
+        }, 5000); // Monitor every 5 seconds
+
+        return () => clearInterval(statsInterval);
+    }
+
+    // Parse WebRTC stats into performance data
+    parseStats(stats) {
+        const performanceData = {
+            timestamp: Date.now(),
+            bandwidth: 0,
+            latency: 0,
+            packetLoss: 0,
+            fps: 0,
+            bitrate: 0,
+            connectionTime: 0
+        };
+
+        stats.forEach(report => {
+            switch(report.type) {
+                case 'inbound-rtp':
+                    if (report.mediaType === 'video') {
+                        performanceData.fps = report.framesPerSecond || 0;
+                        performanceData.bitrate = report.bitrate || 0;
+                        performanceData.packetsLost = report.packetsLost || 0;
+                        performanceData.packetsReceived = report.packetsReceived || 0;
+                    }
+                    break;
+                case 'outbound-rtp':
+                    if (report.mediaType === 'video') {
+                        performanceData.bitrateOut = report.bitrate || 0;
+                    }
+                    break;
+                case 'candidate-pair':
+                    if (report.state === 'succeeded') {
+                        performanceData.latency = report.roundTripTime || 0;
+                        performanceData.connectionTime = report.totalRoundTripTime || 0;
+                    }
+                    break;
+                case 'transport':
+                    performanceData.bytesReceived = report.bytesReceived || 0;
+                    performanceData.bytesSent = report.bytesSent || 0;
+                    break;
+            }
+        });
+
+        // Calculate packet loss percentage
+        if (performanceData.packetsLost && performanceData.packetsReceived) {
+            const total = performanceData.packetsLost + performanceData.packetsReceived;
+            performanceData.packetLoss = (performanceData.packetsLost / total) * 100;
+        }
+
+        // Calculate bandwidth (kbps)
+        if (performanceData.bytesReceived) {
+            performanceData.bandwidth = (performanceData.bytesReceived * 8) / 1024;
+        }
+
+        return performanceData;
+    }
+
+    // Auto-adjust quality based on performance metrics
+    autoAdjustQuality(peerConnection, performanceData) {
+        const { bandwidth, latency, packetLoss } = performanceData;
+        
+        let quality = 'auto';
+        
+        // Determine quality based on performance
+        if (latency > 200 || packetLoss > 5 || bandwidth < 500) {
+            quality = 'low';
+        } else if (latency > 100 || packetLoss > 2 || bandwidth < 1000) {
+            quality = 'medium';
+        } else if (latency < 50 && packetLoss < 1 && bandwidth > 2000) {
+            quality = 'high';
+        }
+        
+        // Apply quality adjustment
+        this.optimizeVideoQuality(peerConnection, quality);
+        
+        // Log performance data for analysis
+        console.log('Performance Metrics:', {
+            quality,
+            bandwidth: `${bandwidth.toFixed(2)} kbps`,
+            latency: `${latency.toFixed(2)} ms`,
+            packetLoss: `${packetLoss.toFixed(2)}%`
+        });
+    }
+
+    // Get browser and network info for performance logging
+    getSystemInfo() {
+        return {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            cookieEnabled: navigator.cookieEnabled,
+            onLine: navigator.onLine,
+            connection: navigator.connection ? {
+                effectiveType: navigator.connection.effectiveType,
+                downlink: navigator.connection.downlink,
+                rtt: navigator.connection.rtt,
+                saveData: navigator.connection.saveData
+            } : null,
+            memory: performance.memory ? {
+                usedJSHeapSize: performance.memory.usedJSHeapSize,
+                totalJSHeapSize: performance.memory.totalJSHeapSize,
+                jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
+            } : null,
+            timing: performance.timing ? {
+                navigationStart: performance.timing.navigationStart,
+                loadEventEnd: performance.timing.loadEventEnd,
+                domContentLoaded: performance.timing.domContentLoadedEventEnd
+            } : null
+        };
     }
 }
 

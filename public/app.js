@@ -47,6 +47,14 @@ class ScreenMirroringApp {
         const actionBar = document.querySelector('.action-bar');
         if (actionBar) actionBar.style.display = 'flex';
         
+        // Update header button based on role
+        const headerActions = document.querySelector('.header-actions');
+        if (this.currentRole === 'presenter') {
+            headerActions.innerHTML = '<button class="btn btn-danger" onclick="endSession()">End Session</button>';
+        } else if (this.currentRole === 'student') {
+            headerActions.innerHTML = '<button class="btn btn-danger" onclick="leaveSession()">Leave Session</button>';
+        }
+        
         // Hide setup overlays
         document.getElementById('presenterSetup').style.display = 'none';
         document.getElementById('studentSetup').style.display = 'none';
@@ -61,6 +69,18 @@ class ScreenMirroringApp {
 const app = new ScreenMirroringApp();
 
 function selectRole(role) { app.selectRole(role); }
+
+function endSession() {
+    if (presenter && presenter.roomId) {
+        presenter.endSession();
+    }
+}
+
+function leaveSession() {
+    if (student && student.roomId) {
+        student.leaveSession();
+    }
+}
 
 // GLOBAL BRIDGES
 function toggleMute() {
@@ -108,5 +128,101 @@ function toggleFullscreen() {
         container.requestFullscreen().catch(err => console.log(err));
     } else {
         document.exitFullscreen();
+    }
+}
+
+function openFeedbackModal() {
+    // Get current user info
+    const userEmail = app.currentRole === 'presenter' ? 
+        document.getElementById('presEmail')?.value : 
+        (student ? document.getElementById('studentEmail')?.value : null);
+    
+    const userName = app.currentRole === 'presenter' ? 
+        document.getElementById('presName')?.value : 
+        (student ? document.getElementById('studentName')?.value : null);
+    
+    // Store user info for feedback submission
+    window.feedbackUserInfo = {
+        email: userEmail,
+        name: userName
+    };
+    
+    // Show the feedback modal
+    document.getElementById('feedbackModal').style.display = 'flex';
+    
+    // Reset rating
+    resetFeedbackRating();
+}
+
+function closeFeedbackModal() {
+    document.getElementById('feedbackModal').style.display = 'none';
+    resetFeedbackRating();
+}
+
+function resetFeedbackRating() {
+    window.selectedRating = 0;
+    document.getElementById('ratingGroup').querySelectorAll('.rating-star').forEach(star => {
+        star.classList.remove('active');
+    });
+    document.getElementById('ratingText').textContent = 'Click on a star to rate';
+    document.getElementById('submitRatingBtn').disabled = true;
+    document.getElementById('feedbackMessage').innerHTML = '';
+    document.getElementById('feedbackMessageInput').value = '';
+}
+
+async function submitRating() {
+    if (!window.selectedRating || !window.feedbackUserInfo?.email) {
+        return;
+    }
+    
+    const submitBtn = document.getElementById('submitRatingBtn');
+    const messageDiv = document.getElementById('feedbackMessage');
+    const messageInput = document.getElementById('feedbackMessageInput');
+    const message = messageInput.value.trim() || null;
+    
+    // Disable submit button
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    
+    try {
+        const response = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: window.feedbackUserInfo.email,
+                rating: window.selectedRating,
+                message: message
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            messageDiv.innerHTML = `
+                <div class="success-message">
+                    ✅ Thank you! Your feedback has been submitted successfully.
+                </div>
+            `;
+            
+            // Close modal after 2 seconds
+            setTimeout(() => {
+                closeFeedbackModal();
+            }, 2000);
+        } else {
+            throw new Error(result.error || 'Failed to submit feedback');
+        }
+    } catch (error) {
+        console.error('Error submitting rating:', error);
+        messageDiv.innerHTML = `
+            <div class="error-message">
+                ❌ Failed to submit feedback: ${error.message}. Please try again.
+            </div>
+        `;
+        
+        // Re-enable submit button
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Feedback';
     }
 }

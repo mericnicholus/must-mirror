@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecture System Admin Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .header {
+            background: #333399;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #FCB900;
+        }
+
+        .stat-card h3 {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333399;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #333399;
+            color: white;
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+        }
+
+        .section-content {
+            padding: 1.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-active {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .status-ended {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .role-presenter {
+            background: #333399;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .role-student {
+            background: #FCB900;
+            color: #333;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .btn {
+            background: #333399;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #2a2a7a;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .filter-group label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .status-ended {
+            background: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .share-type-screen {
+            background: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .share-type-presentation {
+            background: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .share-type-document {
+            background: #fd7e14;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .share-type-application {
+            background: #6f42c1;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .share-type-video {
+            background: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .share-type-audio {
+            background: #20c997;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        /* Performance log type styles */
+        .log-type-connection {
+            background: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-disconnection {
+            background: #fd7e14;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-error {
+            background: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-warning {
+            background: #ffc107;
+            color: #212529;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-info {
+            background: #17a2b8;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-performance {
+            background: #6f42c1;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-screen_share {
+            background: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-chat {
+            background: #20c997;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .log-type-attendance {
+            background: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        /* Network performance metrics color coding */
+        .metric-good {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .metric-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+
+        .metric-bad {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        /* Feedback type styles */
+        .feedback-type-bug_report {
+            background: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .feedback-type-feature_request {
+            background: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .feedback-type-general_feedback {
+            background: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .feedback-type-performance_issue {
+            background: #fd7e14;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .feedback-type-ui_improvement {
+            background: #17a2b8;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .feedback-type-content_quality {
+            background: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .feedback-type-connection_quality {
+            background: #6f42c1;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        /* Feedback status styles */
+        .status-pending {
+            background: #ffc107;
+            color: #212529;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .status-reviewed {
+            background: #17a2b8;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .status-resolved {
+            background: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .status-rejected {
+            background: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            margin-right: 4px;
+        }
+
+        .room-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .room-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid #28a745;
+        }
+
+        .room-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .room-header h3 {
+            color: #333399;
+            margin: 0;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .room-details p {
+            margin: 0.5rem 0;
+            color: #666;
+        }
+
+        .room-actions {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .room-details-modal {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .chat-preview {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .chat-preview p {
+            margin: 0.5rem 0;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 0.5rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filters {
+                flex-direction: column;
+            }
+            
+            table {
+                font-size: 0.8rem;
+            }
+            
+            th, td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>📊 Lecture System Admin Dashboard</h1>
+    </header>
+
+    <div class="container">
+        <div id="message"></div>
+
+        <div class="container">
+        <!-- Real-time Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>🔴 Active Sessions</h3>
+                <div class="stat-number" id="activeSessions">0</div>
+                <div class="stat-label">Live rooms</div>
+            </div>
+            <div class="stat-card">
+                <h3>👥 Connected Users</h3>
+                <div class="stat-number" id="connectedClients">0</div>
+                <div class="stat-label">Online now</div>
+            </div>
+            <div class="stat-card">
+                <h3>📚 Total Users</h3>
+                <div class="stat-number" id="totalUsers">0</div>
+                <div class="stat-label">Registered</div>
+            </div>
+            <div class="stat-card">
+                <h3>📊 Total Attendance</h3>
+                <div class="stat-number" id="totalAttendance">0</div>
+                <div class="stat-label">Records</div>
+            </div>
+        </div>
+
+        <!-- Live Activity Section -->
+        <div class="section">
+            <h2>🔴 Live Activity</h2>
+            <div id="liveActivity">
+                <div class="loading">Loading live data...</div>
+            </div>
+        </div>
+
+        <!-- Content History Section -->
+        <div class="section">
+            <h2>📊 Content Sharing History</h2>
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Room ID</label>
+                    <input type="text" id="contentRoomFilter" placeholder="Filter by room ID">
+                </div>
+                <div class="filter-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="loadContentHistory()">Refresh</button>
+                </div>
+            </div>
+            <div id="contentHistoryContent">
+                <div class="loading">Loading content history...</div>
+            </div>
+        </div>
+
+        <!-- Performance Logs Section -->
+        <div class="section">
+            <h2>📈 Performance Logs</h2>
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Room ID</label>
+                    <input type="text" id="perfRoomFilter" placeholder="Filter by room ID">
+                </div>
+                <div class="filter-group">
+                    <label>Log Type</label>
+                    <select id="perfLogTypeFilter">
+                        <option value="">All Types</option>
+                        <option value="connection">Connection</option>
+                        <option value="disconnection">Disconnection</option>
+                        <option value="error">Errors</option>
+                        <option value="warning">Warnings</option>
+                        <option value="info">Info</option>
+                        <option value="performance">Performance</option>
+                        <option value="screen_share">Screen Share</option>
+                        <option value="chat">Chat</option>
+                        <option value="attendance">Attendance</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="loadPerformanceLogs()">Refresh</button>
+                </div>
+            </div>
+            <div id="performanceLogsContent">
+                <div class="loading">Loading performance logs...</div>
+            </div>
+        </div>
+
+        <!-- User Feedback Section -->
+        <div class="section">
+            <h2>⭐ User Ratings & Feedback</h2>
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Limit</label>
+                    <select id="feedbackLimitFilter">
+                        <option value="50">Last 50</option>
+                        <option value="100">Last 100</option>
+                        <option value="200">Last 200</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="loadFeedback()">Refresh</button>
+                </div>
+            </div>
+            <div id="feedbackContent">
+                <div class="loading">Loading ratings...</div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Users</h3>
+                <div class="value" id="totalUsers">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Sessions</h3>
+                <div class="value" id="totalSessions">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Active Sessions</h3>
+                <div class="value" id="activeSessions">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Logs</h3>
+                <div class="value" id="totalLogs">-</div>
+            </div>
+        </div>
+
+        <!-- Sessions Section -->
+        <div class="section">
+            <div class="section-header">📚 Sessions</div>
+            <div class="section-content">
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="sessionStatusFilter">
+                            <option value="">All</option>
+                            <option value="active">Active</option>
+                            <option value="ended">Ended</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Search</label>
+                        <input type="text" id="sessionSearch" placeholder="Search by room ID or presenter">
+                    </div>
+                    <div class="filter-group">
+                        <label>&nbsp;</label>
+                        <button class="btn" onclick="loadSessions()">Refresh</button>
+                    </div>
+                </div>
+                <div id="sessionsContent">
+                    <div class="loading">Loading sessions...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Section -->
+        <div class="section">
+            <div class="section-header">👥 Users</div>
+            <div class="section-content">
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Role</label>
+                        <select id="userRoleFilter">
+                            <option value="">All</option>
+                            <option value="presenter">Presenters</option>
+                            <option value="student">Students</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Search</label>
+                        <input type="text" id="userSearch" placeholder="Search by name or email">
+                    </div>
+                    <div class="filter-group">
+                        <label>&nbsp;</label>
+                        <button class="btn" onclick="loadUsers()">Refresh</button>
+                    </div>
+                </div>
+                <div id="usersContent">
+                    <div class="loading">Loading users...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="back-link">
+            <a href="index.html">← Back to Lecture System</a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = `http://${window.location.hostname}:${window.location.port}/api`;
+
+        // Test API connection
+        async function testApiConnection() {
+            try {
+                console.log('Testing API connection to:', API_BASE);
+                const response = await fetch(`${API_BASE}/admin/overview`);
+                console.log('API test response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('API test successful, data:', data);
+                    return true;
+                } else {
+                    console.error('API test failed with status:', response.status);
+                    return false;
+                }
+            } catch (error) {
+                console.error('API test error:', error);
+                return false;
+            }
+        }
+
+        // Show message function
+        function showMessage(message, type = 'success') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        // Load initial stats
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/stats`);
+                const stats = await response.json();
+                
+                document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+                document.getElementById('totalSessions').textContent = stats.totalSessions || 0;
+                document.getElementById('activeSessions').textContent = stats.activeSessions || 0;
+                document.getElementById('totalLogs').textContent = stats.totalLogs || 0;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                showMessage('Failed to load statistics', 'error');
+            }
+        }
+
+        // Load sessions
+        async function loadSessions() {
+            const status = document.getElementById('sessionStatusFilter').value;
+            const search = document.getElementById('sessionSearch').value;
+            
+            let url = `${API_BASE}/sessions`;
+            const params = new URLSearchParams();
+            if (status) params.append('status', status);
+            if (search) params.append('search', search);
+            if (params.toString()) url += '?' + params.toString();
+
+            try {
+                const response = await fetch(url);
+                const sessions = await response.json();
+                
+                const content = document.getElementById('sessionsContent');
+                if (sessions.length === 0) {
+                    content.innerHTML = '<p style="text-align: center; color: #666;">No sessions found</p>';
+                    return;
+                }
+
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Room ID</th>
+                                <th>Presenter</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Participants</th>
+                                <th>Created</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                sessions.forEach(session => {
+                    const duration = session.ended_at ? 
+                        Math.floor((new Date(session.ended_at) - new Date(session.created_at)) / 60000) + ' min' :
+                        'Active';
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${session.room_id}</strong></td>
+                            <td>${session.presenter_name}</td>
+                            <td>${session.title || '-'}</td>
+                            <td><span class="status-${session.status}">${session.status}</span></td>
+                            <td>${session.participant_count}</td>
+                            <td>${new Date(session.created_at).toLocaleString()}</td>
+                            <td>${duration}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+                content.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+                document.getElementById('sessionsContent').innerHTML = '<p style="color: red;">Failed to load sessions</p>';
+            }
+        }
+
+        // Load users
+        async function loadUsers() {
+            const role = document.getElementById('userRoleFilter').value;
+            const search = document.getElementById('userSearch').value;
+            
+            let url = `${API_BASE}/users`;
+            const params = new URLSearchParams();
+            if (role) params.append('role', role);
+            if (search) params.append('search', search);
+            if (params.toString()) url += '?' + params.toString();
+
+            try {
+                const response = await fetch(url);
+                const users = await response.json();
+                
+                const content = document.getElementById('usersContent');
+                if (users.length === 0) {
+                    content.innerHTML = '<p style="text-align: center; color: #666;">No users found</p>';
+                    return;
+                }
+
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Last Active</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                users.forEach(user => {
+                    html += `
+                        <tr>
+                            <td><strong>${user.name}</strong></td>
+                            <td>${user.email}</td>
+                            <td><span class="role-${user.role}">${user.role}</span></td>
+                            <td>${user.last_active ? new Date(user.last_active).toLocaleString() : 'Never'}</td>
+                            <td>${new Date(user.created_at).toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+                content.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('usersContent').innerHTML = '<p style="color: red;">Failed to load users</p>';
+            }
+        }
+
+        // Real-time monitoring functions
+        async function loadLiveActivity() {
+            try {
+                console.log('Loading live activity from:', `${API_BASE}/admin/overview`);
+                const response = await fetch(`${API_BASE}/admin/overview`);
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Live activity data:', data);
+                
+                // Update stats
+                document.getElementById('activeSessions').textContent = data.stats.activeSessions;
+                document.getElementById('connectedClients').textContent = data.stats.connectedClients;
+                document.getElementById('totalUsers').textContent = data.stats.totalUsers;
+                document.getElementById('totalAttendance').textContent = data.stats.totalAttendance;
+                
+                // Update live activity
+                const liveActivityDiv = document.getElementById('liveActivity');
+                if (data.activeRooms.length === 0) {
+                    liveActivityDiv.innerHTML = '<p style="text-align: center; color: #666;">No active sessions at the moment</p>';
+                } else {
+                    let html = '<div class="room-grid">';
+                    data.activeRooms.forEach(room => {
+                        html += `
+                            <div class="room-card">
+                                <div class="room-header">
+                                    <h3>${room.roomId}</h3>
+                                    <span class="status-badge status-active">🔴 LIVE</span>
+                                </div>
+                                <div class="room-details">
+                                    <p><strong>Presenter:</strong> ${room.presenterName}</p>
+                                    <p><strong>Email:</strong> ${room.presenterEmail}</p>
+                                    <p><strong>Students:</strong> ${room.studentCount}</p>
+                                    <p><strong>Started:</strong> ${new Date(room.createdAt).toLocaleTimeString()}</p>
+                                </div>
+                                <div class="room-actions">
+                                    <button onclick="viewRoomDetails('${room.roomId}')" class="btn btn-primary">View Details</button>
+                                    <button onclick="viewAttendance('${room.roomId}')" class="btn btn-secondary">Attendance</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    liveActivityDiv.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Error loading live activity:', error);
+                document.getElementById('liveActivity').innerHTML = `<p style="color: red;">Failed to load live data: ${error.message}</p>`;
+            }
+        }
+
+        async function viewRoomDetails(roomId) {
+            try {
+                const response = await fetch(`${API_BASE}/admin/room/${roomId}/details`);
+                const data = await response.json();
+                
+                let html = `
+                    <div class="room-details-modal">
+                        <h3>Room Details: ${data.room.roomId}</h3>
+                        <div class="details-grid">
+                            <div>
+                                <h4>Information</h4>
+                                <p><strong>Presenter:</strong> ${data.room.presenterName}</p>
+                                <p><strong>Email:</strong> ${data.room.presenterEmail}</p>
+                                <p><strong>Status:</strong> ${data.room.status}</p>
+                                <p><strong>Started:</strong> ${new Date(data.room.createdAt).toLocaleString()}</p>
+                            </div>
+                            <div>
+                                <h4>Participants (${data.participants.length})</h4>
+                                <ul>
+                `;
+                
+                data.participants.forEach(participant => {
+                    html += `<li>${participant.name} (${participant.email})</li>`;
+                });
+                
+                html += `
+                                </ul>
+                            </div>
+                            <div>
+                                <h4>Recent Chat (${data.chatHistory.length})</h4>
+                                <div class="chat-preview">
+                `;
+                
+                data.chatHistory.slice(-5).forEach(msg => {
+                    html += `<p><strong>${msg.senderName}:</strong> ${msg.message}</p>`;
+                });
+                
+                html += `
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="closeModal()" class="btn btn-secondary">Close</button>
+                    </div>
+                `;
+                
+                // Create modal
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.innerHTML = html;
+                document.body.appendChild(modal);
+                
+            } catch (error) {
+                console.error('Error loading room details:', error);
+                alert('Failed to load room details');
+            }
+        }
+
+        function closeModal() {
+            const modal = document.querySelector('.modal');
+            if (modal) modal.remove();
+        }
+
+        function viewAttendance(roomId) {
+            window.open(`/api/session/${roomId}/attendance/export`, '_blank');
+        }
+
+        // Load content history
+        async function loadContentHistory() {
+            const roomId = document.getElementById('contentRoomFilter').value;
+            
+            try {
+                let url = `${API_BASE}/admin/content-history`;
+                if (roomId) {
+                    url += `?sessionId=${roomId}`;
+                }
+                
+                const response = await fetch(url);
+                const contentHistory = await response.json();
+                
+                const content = document.getElementById('contentHistoryContent');
+                
+                if (contentHistory.length === 0) {
+                    content.innerHTML = '<p style="text-align: center; color: #666;">No content sharing history found</p>';
+                    return;
+                }
+                
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Room ID</th>
+                                <th>User</th>
+                                <th>Content Type</th>
+                                <th>Title</th>
+                                <th>Description</th>
+                                <th>Slides</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Started</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                contentHistory.forEach(record => {
+                    const duration = record.duration_seconds ? 
+                        `${Math.floor(record.duration_seconds / 60)}m ${record.duration_seconds % 60}s` : 
+                        'Active';
+                    
+                    const statusClass = record.is_active ? 'status-active' : 'status-ended';
+                    const statusText = record.is_active ? '🔴 Active' : '⚫ Ended';
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${record.room_id}</strong></td>
+                            <td>${record.user_name}</td>
+                            <td><span class="share-type-${record.share_type}">${record.share_type}</span></td>
+                            <td>${record.content_title || '-'}</td>
+                            <td>${record.content_description || '-'}</td>
+                            <td>${record.slide_count || '-'}</td>
+                            <td>${duration}</td>
+                            <td><span class="${statusClass}">${statusText}</span></td>
+                            <td>${new Date(record.started_at).toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                content.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading content history:', error);
+                document.getElementById('contentHistoryContent').innerHTML = '<p style="color: red;">Failed to load content history</p>';
+            }
+        }
+
+        // Load performance logs
+        async function loadPerformanceLogs() {
+            const roomId = document.getElementById('perfRoomFilter').value;
+            const logType = document.getElementById('perfLogTypeFilter').value;
+            
+            try {
+                let url = `${API_BASE}/admin/performance-logs`;
+                const params = new URLSearchParams();
+                
+                if (roomId) params.append('sessionId', roomId);
+                if (logType) params.append('logType', logType);
+                params.append('limit', '100');
+                
+                if (params.toString()) {
+                    url += `?${params.toString()}`;
+                }
+                
+                const response = await fetch(url);
+                const logs = await response.json();
+                
+                const content = document.getElementById('performanceLogsContent');
+                
+                if (logs.length === 0) {
+                    content.innerHTML = '<p style="text-align: center; color: #666;">No performance logs found</p>';
+                    return;
+                }
+                
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Room ID</th>
+                                <th>Participant</th>
+                                <th>Type</th>
+                                <th>Message</th>
+                                <th>Latency (ms)</th>
+                                <th>Throughput (Mbps)</th>
+                                <th>Packet Loss (%)</th>
+                                <th>Jitter (ms)</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                logs.forEach(log => {
+                    const typeClass = `log-type-${log.log_type}`;
+                    const time = new Date(log.recorded_at).toLocaleString();
+                    
+                    let detailsHtml = '';
+                    if (log.details) {
+                        detailsHtml = `<pre>${JSON.stringify(log.details, null, 2)}</pre>`;
+                    }
+                    
+                    // Format network metrics with color coding
+                    const latency = log.latency_ms ? `<span class="${log.latency_ms > 300 ? 'metric-bad' : log.latency_ms > 150 ? 'metric-warning' : 'metric-good'}">${log.latency_ms.toFixed(1)}</span>` : '-';
+                    const throughput = log.throughput_mbps ? `<span class="${log.throughput_mbps < 2 ? 'metric-bad' : log.throughput_mbps < 3 ? 'metric-warning' : 'metric-good'}">${log.throughput_mbps.toFixed(1)}</span>` : '-';
+                    const packetLoss = log.packet_loss_pct ? `<span class="${log.packet_loss_pct > 5 ? 'metric-bad' : log.packet_loss_pct > 2 ? 'metric-warning' : 'metric-good'}">${log.packet_loss_pct.toFixed(1)}</span>` : '-';
+                    const jitter = log.jitter_ms ? `<span class="${log.jitter_ms > 30 ? 'metric-bad' : log.jitter_ms > 15 ? 'metric-warning' : 'metric-good'}">${log.jitter_ms.toFixed(1)}</span>` : '-';
+                    
+                    html += `
+                        <tr>
+                            <td>${time}</td>
+                            <td>${log.room_id || '-'}</td>
+                            <td>${log.participant_name || '-'}</td>
+                            <td><span class="${typeClass}">${log.log_type}</span></td>
+                            <td>${log.message}</td>
+                            <td>${latency}</td>
+                            <td>${throughput}</td>
+                            <td>${packetLoss}</td>
+                            <td>${jitter}</td>
+                            <td>${detailsHtml || '-'}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                content.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading performance logs:', error);
+                document.getElementById('performanceLogsContent').innerHTML = '<p style="color: red;">Failed to load performance logs</p>';
+            }
+        }
+
+        // Load user feedback
+        async function loadFeedback() {
+            const limit = document.getElementById('feedbackLimitFilter').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/feedback?limit=${limit}`);
+                const feedback = await response.json();
+                
+                const content = document.getElementById('feedbackContent');
+                
+                if (feedback.length === 0) {
+                    content.innerHTML = '<p style="text-align: center; color: #666;">No ratings found</p>';
+                    return;
+                }
+                
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Rating</th>
+                                <th>Comments</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                feedback.forEach(item => {
+                    const time = new Date(item.created_at).toLocaleString();
+                    const ratingStars = '⭐'.repeat(item.rating);
+                    const message = item.message ? `<div style="max-width: 300px; word-wrap: break-word;">${item.message}</div>` : '<em style="color: #999;">No comments</em>';
+                    
+                    html += `
+                        <tr>
+                            <td>${time}</td>
+                            <td>${item.user_name}<br><small>${item.user_email}</small></td>
+                            <td><span class="role-${item.user_role}">${item.user_role}</span></td>
+                            <td><strong>${ratingStars}</strong></td>
+                            <td>${message}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                content.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading feedback:', error);
+                document.getElementById('feedbackContent').innerHTML = '<p style="color: red;">Failed to load ratings</p>';
+            }
+        }
+
+        // Initialize dashboard
+        async function init() {
+            // Test API connection first
+            const apiTest = await testApiConnection();
+            if (!apiTest) {
+                document.getElementById('liveActivity').innerHTML = '<p style="color: red;">API connection failed. Please check if the server is running on the correct port.</p>';
+                return;
+            }
+            
+            await loadLiveActivity();
+            await loadStats();
+            await loadSessions();
+            await loadUsers();
+            await loadContentHistory();
+            await loadPerformanceLogs();
+            await loadFeedback();
+
+            // Set up auto-refresh
+            setInterval(loadLiveActivity, 5000); // Refresh live data every 5 seconds
+            setInterval(loadStats, 30000); // Refresh stats every 30 seconds
+        }
+
+        // Event listeners
+        document.getElementById('sessionStatusFilter').addEventListener('change', loadSessions);
+        document.getElementById('sessionSearch').addEventListener('input', loadSessions);
+        document.getElementById('userRoleFilter').addEventListener('change', loadUsers);
+        document.getElementById('userSearch').addEventListener('input', loadUsers);
+        document.getElementById('contentRoomFilter').addEventListener('input', loadContentHistory);
+        document.getElementById('perfRoomFilter').addEventListener('input', loadPerformanceLogs);
+        document.getElementById('perfLogTypeFilter').addEventListener('change', loadPerformanceLogs);
+        document.getElementById('feedbackLimitFilter').addEventListener('change', loadFeedback);
+
+        // Start the dashboard
+        init();
+    </script>
+</body>
+</html>

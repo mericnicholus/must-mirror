@@ -13,7 +13,7 @@
         <header class="main-header">
             <div class="header-content">
                 <div class="brand">
-                    <div class="logo-icon">🎓</div>
+                    <img src="must logo.png" alt="MUST Mirror Logo" class="logo-image">
                     <div class="brand-text">
                         <h1>MUST <span>Mirror</span></h1>
                         <span class="brand-tagline"></span>
@@ -28,7 +28,7 @@
                 </div>
 
                 <div class="header-actions">
-                    <button class="btn btn-ghost" onclick="location.reload()">Exit Session</button>
+                    <!-- Buttons will be dynamically added based on role -->
                 </div>
             </div>
         </header>
@@ -63,24 +63,91 @@
                 
                 <!-- SIDEBAR -->
                 <aside class="sidebar-column">
-                    <div class="sidebar-section">
-                        <div class="section-header">
-                            <h3>In this Class</h3>
-                            <span id="studentCount" class="badge">0</span>
+                    <!-- CHAT NOTIFICATION ICON -->
+                    <div id="chatNotificationIcon" class="chat-notification-icon" onclick="toggleChatView()" style="display: none;">
+                        💬
+                        <span id="chatRedDot" class="chat-red-dot" style="display: none;">●</span>
+                    </div>
+
+                    <!-- REGULAR SIDEBAR CONTENT -->
+                    <div id="regularSidebarContent">
+                        <div class="sidebar-section">
+                            <div class="section-header">
+                                <h3>In this Class</h3>
+                                <span id="studentCount" class="badge">0</span>
+                            </div>
+                            <div id="studentGrid" class="participant-grid">
+                                <!-- Participant chips injected here -->
+                            </div>
                         </div>
-                        <div id="studentGrid" class="participant-grid">
-                            <!-- Participant chips injected here -->
+
+                        <div id="shareLinkContainer" class="sidebar-section" style="display: none;">
+                            <div class="section-header">
+                                <h3>Invite Students</h3>
+                            </div>
+                            <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 12px;">Share this link with your class:</p>
+                            <div class="link-copy">
+                                <input type="text" id="shareLinkInput" readonly>
+                                <button class="btn btn-primary btn-block" style="height: 36px; font-size: 0.8125rem;" onclick="copyCurrentLink()">Copy Link</button>
+                            </div>
+                        </div>
+
+                        <div id="qrButtonContainer" class="sidebar-section" style="display: none;">
+                            <button class="btn btn-primary btn-block" onclick="openQRModal()" style="height: 44px; font-size: 0.9rem; font-weight: 600;">
+                                Scan QR Code
+                            </button>
+                        </div>
+
+                        <div id="attendanceExportContainer" class="sidebar-section" style="display: none;">
+                            <button class="btn btn-success btn-block" onclick="exportAttendance()" style="height: 44px; font-size: 0.9rem; font-weight: 600;">
+                                📋 Export Attendance
+                            </button>
                         </div>
                     </div>
 
-                    <div id="shareLinkContainer" class="sidebar-section" style="display: none;">
-                        <div class="section-header">
-                            <h3>Invite Students</h3>
+                    <!-- CHAT ONLY VIEW -->
+                    <div id="chatOnlyView" class="chat-only-view" style="display: none;">
+                        <div class="chat-only-header">
+                            <button class="back-btn" onclick="toggleChatView()">← Back</button>
+                            <h3>Class Chat</h3>
                         </div>
-                        <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 12px;">Share this link with your class:</p>
-                        <div class="link-copy">
-                            <input type="text" id="shareLinkInput" readonly>
-                            <button class="btn btn-primary btn-block" style="height: 36px; font-size: 0.8125rem;" onclick="copyCurrentLink()">Copy Link</button>
+                        <div id="chatMessages" class="chat-messages">
+                            <!-- Messages will be added here -->
+                        </div>
+                        <div class="chat-input-container">
+                            <textarea id="chatInput" placeholder="Type a message..." maxlength="500" rows="2"></textarea>
+                            <button id="sendChatBtn" class="btn btn-primary" onclick="sendChatMessage()">Send</button>
+                        </div>
+                    </div>
+
+                    <!-- REGULAR CHAT SECTION -->
+                    <div id="chatSection" class="sidebar-section chat-section" style="display: none;">
+                        <div class="section-header">
+                            <h3>Class Chat</h3>
+                            <span id="unreadCount" class="badge" style="display: none;">0</span>
+                        </div>
+                        <div id="chatMessagesRegular" class="chat-messages">
+                            <!-- Messages will be added here -->
+                        </div>
+                        <!-- Direct chat input -->
+                        <div class="chat-input-container">
+                            <textarea id="chatInputRegular" placeholder="Type a message..." maxlength="500" rows="2"></textarea>
+                            <button id="sendChatBtnRegular" class="btn btn-primary" onclick="sendChatMessage()">Send</button>
+                        </div>
+                    </div>
+
+                    <!-- CHAT INPUT POPUP -->
+                    <div id="chatInputPopup" class="chat-input-popup" style="display: none;">
+                        <div class="chat-popup-content">
+                            <div class="chat-popup-header">
+                                <h4>Send Message</h4>
+                                <button class="close-popup-btn" onclick="closeChatInput()">×</button>
+                            </div>
+                            <textarea id="chatInputPopup" placeholder="Type your message..." maxlength="500" rows="3"></textarea>
+                            <div class="chat-popup-actions">
+                                <button class="btn btn-secondary" onclick="closeChatInput()">Cancel</button>
+                                <button class="btn btn-primary" onclick="sendChatMessageFromPopup()">Send</button>
+                            </div>
                         </div>
                     </div>
                 </aside>
@@ -89,7 +156,7 @@
                 <div class="video-column">
                     <div class="video-container">
                         <div id="waitingMessage" class="waiting-state">
-                            <div class="pulse-icon">📺</div>
+                            <div class="spinner-icon"></div>
                             <p style="font-weight: 500; font-size: 1.125rem;">Waiting for broadcast to start...</p>
                             <p style="opacity: 0.6; font-size: 0.875rem; margin-top: 8px;">The presenter will begin the session shortly</p>
                         </div>
@@ -105,6 +172,9 @@
                         </button>
                         <button id="shareBtn" class="btn btn-action" onclick="toggleShare()">
                             <span class="icon">📺</span> Share Screen
+                        </button>
+                        <button class="btn btn-action" onclick="openFeedbackModal()">
+                            <span class="icon">💬</span> Feedback
                         </button>
                         <button class="btn btn-action" onclick="toggleFullscreen()">
                             <span class="icon">🔲</span> Fullscreen
@@ -147,14 +217,79 @@
         </main>
     </div>
 
+    <!-- QR CODE MODAL -->
+    <div id="qrModal" class="modal-overlay" style="display: none;">
+        <div class="qr-modal-card">
+            <div class="qr-modal-header">
+                <h3>Scan QR Code to Join</h3>
+                <button class="modal-close-btn" onclick="closeQRModal()">✕</button>
+            </div>
+            <div class="qr-modal-content">
+                <div class="qr-modal-qr-wrapper">
+                    <div id="qrModalCode"></div>
+                </div>
+                <p style="font-size: 1rem; color: var(--text); margin-bottom: 16px; text-align: center;">
+                    Students can scan this code with their smartphone or tablet camera to join the presentation instantly.
+                </p>
+                <div class="qr-modal-room-info">
+                    <strong>Room ID:</strong> <span id="qrModalRoomId"></span>
+                </div>
+            </div>
+            <div class="qr-modal-footer">
+                <button class="btn btn-secondary" onclick="closeQRModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FEEDBACK MODAL -->
+    <div id="feedbackModal" class="modal-overlay" style="display: none;">
+        <div class="feedback-modal-card">
+            <div class="feedback-modal-header">
+                <h3>⭐ Rate This Session</h3>
+                <button class="modal-close-btn" onclick="closeFeedbackModal()">✕</button>
+            </div>
+            <div class="feedback-modal-content">
+                <p style="text-align: center; color: var(--text); margin-bottom: 20px;">
+                    How was your experience today?
+                </p>
+                
+                <div class="rating-section">
+                    <div class="rating-group" id="ratingGroup">
+                        <span class="rating-star" data-rating="1">⭐</span>
+                        <span class="rating-star" data-rating="2">⭐</span>
+                        <span class="rating-star" data-rating="3">⭐</span>
+                        <span class="rating-star" data-rating="4">⭐</span>
+                        <span class="rating-star" data-rating="5">⭐</span>
+                    </div>
+                    <div class="rating-text" id="ratingText">Click on a star to rate</div>
+                </div>
+
+                <div class="message-section">
+                    <label for="feedbackMessageInput" style="display: block; margin-bottom: 8px; color: var(--text); font-weight: 500;">Additional Comments (Optional):</label>
+                    <textarea id="feedbackMessageInput" placeholder="Share your thoughts about this session..." rows="4" style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 6px; font-size: 14px; resize: vertical; box-sizing: border-box;"></textarea>
+                </div>
+
+                <div id="feedbackMessage"></div>
+            </div>
+            <div class="feedback-modal-footer">
+                <button class="btn btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
+                <button class="btn btn-primary" id="submitRatingBtn" onclick="submitRating()" disabled>Submit Feedback</button>
+            </div>
+        </div>
+    </div>
+
     <!-- SCRIPTS -->
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="webrtc-utils.js"></script>
     <script src="utils.js"></script>
     <script src="presenter.js"></script>
     <script src="student.js"></script>
     <script src="app.js"></script>
     <script>
+        let isChatOnlyView = false;
+        let unreadMessages = 0;
+
         function copyCurrentLink() {
             const input = document.getElementById('shareLinkInput');
             if (typeof copyToClipboard === 'function') {
@@ -165,6 +300,215 @@
                 document.execCommand('copy');
             }
         }
+
+        function openQRModal() {
+            presenter.generateQRCode();
+            document.getElementById('qrModal').style.display = 'flex';
+        }
+
+        function closeQRModal() {
+            document.getElementById('qrModal').style.display = 'none';
+        }
+
+        function toggleChatView() {
+            const chatSection = document.getElementById('chatSection');
+            const notificationIcon = document.getElementById('chatNotificationIcon');
+            
+            isChatOnlyView = !isChatOnlyView;
+            
+            if (isChatOnlyView) {
+                // Show chat section in sidebar
+                chatSection.style.display = 'flex';
+                notificationIcon.style.display = 'none';
+                
+                // Clear notifications
+                clearChatNotifications();
+            } else {
+                // Hide chat section in sidebar
+                chatSection.style.display = 'none';
+                notificationIcon.style.display = 'flex';
+            }
+        }
+
+        function showChatNotification() {
+            unreadMessages++;
+            const notificationIcon = document.getElementById('chatNotificationIcon');
+            const redDot = document.getElementById('chatRedDot');
+            const unreadCount = document.getElementById('unreadCount');
+            
+            if (isChatOnlyView) {
+                // Don't show notification if chat is already open
+                return;
+            }
+            
+            notificationIcon.style.display = 'flex';
+            redDot.style.display = 'block';
+            unreadCount.textContent = unreadMessages;
+            unreadCount.style.display = 'inline-block';
+        }
+
+        function clearChatNotifications() {
+            unreadMessages = 0;
+            const redDot = document.getElementById('chatRedDot');
+            const unreadCount = document.getElementById('unreadCount');
+            
+            redDot.style.display = 'none';
+            unreadCount.style.display = 'none';
+        }
+
+        function sendChatMessage() {
+            // Try regular chat input first, then others
+            const input = document.getElementById('chatInputRegular') || document.getElementById('chatInput') || document.getElementById('chatInputPopup');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            console.log('Sending message:', message); // Debug log
+            
+            // Send based on current role
+            if (app.currentRole === 'presenter') {
+                if (presenter && typeof presenter.sendChatMessage === 'function') {
+                    presenter.sendChatMessage(message);
+                } else {
+                    console.error('Presenter or sendChatMessage not available');
+                }
+            } else if (app.currentRole === 'student') {
+                if (student && typeof student.sendChatMessage === 'function') {
+                    student.sendChatMessage(message);
+                } else {
+                    console.error('Student or sendChatMessage not available');
+                }
+            } else {
+                console.error('No valid role set:', app.currentRole);
+            }
+            
+            input.value = '';
+            closeChatInput(); // Close popup after sending
+        }
+
+        function sendChatMessageFromPopup() {
+            sendChatMessage();
+        }
+
+        function openChatInput() {
+            document.getElementById('chatInputPopup').style.display = 'flex';
+            // Focus on the textarea
+            setTimeout(() => {
+                document.getElementById('chatInputPopup').focus();
+            }, 100);
+        }
+
+        function closeChatInput() {
+            document.getElementById('chatInputPopup').style.display = 'none';
+            document.getElementById('chatInputPopup').value = '';
+        }
+
+        // Handle Enter key in chat inputs - Shift+Enter for new line, Enter to send
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatInputs = ['chatInput', 'chatInputRegular', 'chatInputPopup'];
+            chatInputs.forEach(inputId => {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault(); // Prevent new line
+                            if (inputId === 'chatInputPopup') {
+                                sendChatMessageFromPopup();
+                            } else {
+                                sendChatMessage();
+                            }
+                        }
+                        // Allow Shift+Enter for new line (default behavior)
+                    });
+                    
+                    // Auto-resize textarea
+                    input.addEventListener('input', function() {
+                        this.style.height = 'auto';
+                        this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+                    });
+                }
+            });
+
+            // Close popup when clicking outside
+            document.getElementById('chatInputPopup').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeChatInput();
+                }
+            });
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('qrModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeQRModal();
+            }
+        });
+
+        // Feedback rating system
+        const ratingTexts = {
+            1: 'Poor - Very dissatisfied',
+            2: 'Fair - Somewhat dissatisfied', 
+            3: 'Good - Neutral',
+            4: 'Very Good - Satisfied',
+            5: 'Excellent - Very satisfied'
+        };
+
+        // Initialize rating stars
+        document.addEventListener('DOMContentLoaded', function() {
+            const ratingStars = document.querySelectorAll('#ratingGroup .rating-star');
+            const ratingText = document.getElementById('ratingText');
+            
+            ratingStars.forEach(star => {
+                star.addEventListener('click', function() {
+                    window.selectedRating = parseInt(this.dataset.rating);
+                    updateRatingStars();
+                    updateRatingText();
+                    document.getElementById('submitRatingBtn').disabled = false;
+                });
+
+                star.addEventListener('mouseenter', function() {
+                    const hoverRating = parseInt(this.dataset.rating);
+                    ratingStars.forEach((s, index) => {
+                        if (index < hoverRating) {
+                            s.classList.add('active');
+                        } else {
+                            s.classList.remove('active');
+                        }
+                    });
+                    ratingText.textContent = ratingTexts[hoverRating];
+                });
+            });
+
+            document.getElementById('ratingGroup').addEventListener('mouseleave', function() {
+                updateRatingStars();
+                updateRatingText();
+            });
+
+            function updateRatingStars() {
+                ratingStars.forEach((star, index) => {
+                    if (index < window.selectedRating) {
+                        star.classList.add('active');
+                    } else {
+                        star.classList.remove('active');
+                    }
+                });
+            }
+
+            function updateRatingText() {
+                if (window.selectedRating > 0) {
+                    ratingText.textContent = ratingTexts[window.selectedRating];
+                } else {
+                    ratingText.textContent = 'Click on a star to rate';
+                }
+            }
+        });
+
+        // Close feedback modal when clicking outside
+        document.getElementById('feedbackModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeFeedbackModal();
+            }
+        });
     </script>
 </body>
 </html>
