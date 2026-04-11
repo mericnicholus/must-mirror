@@ -249,7 +249,12 @@
         </div>
     </div>
 
+    <script src="/security.js"></script>
     <script>
+        if (window.MustMirrorSecurity && typeof window.MustMirrorSecurity.protectPage === 'function') {
+            window.MustMirrorSecurity.protectPage();
+        }
+
         const API_BASE = 'http://localhost:3000';
         let selectedRating = 0;
 

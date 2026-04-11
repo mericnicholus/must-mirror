@@ -1,15 +1,14 @@
 // WebRTC utility functions and configuration
 class WebRTCUtils {
     constructor() {
-        // Detect if we're offline or on local network
-        const isOffline = !navigator.onLine || window.location.hostname === 'localhost';
+        // Prefer local ICE on campus LAN so the app still works well without internet.
+        const hostname = window.location.hostname;
+        const isPrivateIpv4 = /^(10\.\d+\.\d+\.\d+|127\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/.test(hostname);
+        const isOffline = !navigator.onLine || hostname === 'localhost' || hostname.endsWith('.local') || isPrivateIpv4;
         
         // Optimized STUN/TURN servers for faster connection
         this.configuration = {
-            iceServers: isOffline ? [
-                // Offline/local mode - optimized for local networks
-                { urls: 'stun:stun.l.google.com:19302' }
-            ] : [
+            iceServers: isOffline ? [] : [
                 // Online mode - multiple STUN servers for faster ICE gathering
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
@@ -194,7 +193,7 @@ class WebRTCUtils {
     async createOffer(peerConnection, socket, targetId, roomId) {
         try {
             const offer = await peerConnection.createOffer({
-                offerToReceiveAudio: false,
+                offerToReceiveAudio: true,
                 offerToReceiveVideo: true
             });
             

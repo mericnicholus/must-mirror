@@ -7,6 +7,7 @@ const DB_PATH = path.join(__dirname, 'wireless_screen_sharing.db');
 class Database {
     constructor() {
         this.db = null;
+        this.usersEmailRequired = false;
     }
 
     // Initialize database connection and create tables
@@ -26,18 +27,25 @@ class Database {
 
     async createTables() {
         try {
+            // Baseline safety and consistency pragmas.
+            await this.run('PRAGMA foreign_keys = ON');
+            await this.run('PRAGMA journal_mode = WAL');
+            await this.run('PRAGMA busy_timeout = 5000');
+            await this.run('PRAGMA trusted_schema = OFF');
+
             // Create tables with IF NOT EXISTS to avoid conflicts
             await this.run(`
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     email TEXT UNIQUE,
-                    role TEXT NOT NULL CHECK (role IN ('presenter', 'student')),
+                    role TEXT NOT NULL CHECK (role IN ('presenter', 'student', 'admin')),
                     socket_id TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     last_active DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             `);
+            await this.detectUsersSchemaConstraints();
 
             await this.run(`
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -54,27 +62,8 @@ class Database {
                 )
             `);
 
-            // Create content_shares table with basic structure first
-            await this.run(`
-                CREATE TABLE IF NOT EXISTS content_shares (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id INTEGER NOT NULL,
-                    user_id INTEGER NOT NULL,
-                    share_type TEXT NOT NULL CHECK (share_type IN ('screen', 'audio', 'video')),
-                    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    ended_at DATETIME,
-                    duration_seconds INTEGER,
-                    FOREIGN KEY (session_id) REFERENCES sessions (id),
-                    FOREIGN KEY (user_id) REFERENCES users (id)
-                )
-            `);
-
-            // Check if we need to add new columns to content_shares table
-            await this.migrateContentSharesTable();
+            await this.dropLegacyContentSharesTable();
             
-            // Check if we need to migrate performance_logs table
-            await this.migratePerformanceLogsTable();
-
             await this.run(`
                 CREATE TABLE IF NOT EXISTS attendance (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,11 +71,13 @@ class Database {
                     user_id INTEGER NOT NULL,
                     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     left_at DATETIME,
-                    duration_seconds INTEGER,
+                    duration_minutes INTEGER,
                     FOREIGN KEY (session_id) REFERENCES sessions (id),
                     FOREIGN KEY (user_id) REFERENCES users (id)
                 )
             `);
+            await this.migrateAttendanceTable();
+            await this.normalizeAttendanceDurations();
 
             // Performance logs table - network performance metrics
             await this.run(`
@@ -100,24 +91,47 @@ class Database {
                     jitter_ms FLOAT DEFAULT NULL, -- Should be minimal to avoid stuttering
                     log_type TEXT NOT NULL CHECK (log_type IN ('connection', 'disconnection', 'error', 'warning', 'info', 'performance', 'content_share', 'screen_share', 'chat', 'attendance')),
                     message TEXT NOT NULL,
-                    details TEXT, -- JSON string for additional performance data
                     recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (session_id) REFERENCES sessions (id),
                     FOREIGN KEY (participant_id) REFERENCES users (id)
                 )
             `);
+            await this.migratePerformanceLogsTable();
 
             // User feedback table - simplified with message
             await this.run(`
                 CREATE TABLE IF NOT EXISTS user_feedback (
-                    feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
-                    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-                    message TEXT,
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users (id)
+                    session_id INTEGER,
+                    feedback_type TEXT NOT NULL DEFAULT 'general' CHECK (feedback_type IN ('bug_report', 'feature_request', 'general', 'rating')),
+                    rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+                    subject TEXT,
+                    message TEXT NOT NULL,
+                    issue_type TEXT,
+                    description TEXT,
+                    screenshot_name TEXT,
+                    screenshot_type TEXT,
+                    screenshot_path TEXT,
+                    status TEXT DEFAULT 'pending',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id),
+                    FOREIGN KEY (session_id) REFERENCES sessions (id)
                 )
             `);
+
+            await this.run(`
+                CREATE TABLE IF NOT EXISTS admin_users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    salt TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP
+                )
+            `);
+
+            await this.migrateFeedbackTable();
 
             console.log('All database tables created successfully.');
         } catch (error) {
@@ -126,96 +140,261 @@ class Database {
         }
     }
 
-    async migrateContentSharesTable() {
+    async dropLegacyContentSharesTable() {
         try {
-            // Check if content_title column exists
-            const tableInfo = await this.all("PRAGMA table_info(content_shares)");
-            const hasContentTitle = tableInfo.some(column => column.name === 'content_title');
-            
-            if (!hasContentTitle) {
-                console.log('Migrating content_shares table with new columns...');
-                
-                // Add new columns one by one
-                await this.run('ALTER TABLE content_shares ADD COLUMN content_title TEXT');
-                await this.run('ALTER TABLE content_shares ADD COLUMN content_description TEXT');
-                await this.run('ALTER TABLE content_shares ADD COLUMN content_metadata TEXT');
-                await this.run('ALTER TABLE content_shares ADD COLUMN slide_count INTEGER');
-                await this.run('ALTER TABLE content_shares ADD COLUMN current_slide INTEGER DEFAULT 1');
-                await this.run('ALTER TABLE content_shares ADD COLUMN is_active BOOLEAN DEFAULT 1');
-                
-                console.log('Content shares table migration completed.');
+            const tableInfo = await this.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'content_shares'");
+            if (tableInfo.length > 0) {
+                console.log('Removing legacy content_shares table...');
+                await this.run('DROP TABLE IF EXISTS content_shares', [], { allowDangerous: true });
+                await this.run("DELETE FROM sqlite_sequence WHERE name = 'content_shares'");
             }
         } catch (error) {
-            console.error('Error migrating content_shares table:', error);
-            // Don't throw error here, as the table might already have the columns
+            console.error('Error removing legacy content_shares table:', error);
         }
     }
 
     async migratePerformanceLogsTable() {
         try {
-            // Check if table has the old structure (id column instead of log_id)
             const tableInfo = await this.all("PRAGMA table_info(performance_logs)");
-            const hasLogId = tableInfo.some(column => column.name === 'log_id');
-            const hasParticipantId = tableInfo.some(column => column.name === 'participant_id');
-            
-            if (!hasLogId || !hasParticipantId) {
-                console.log('Migrating performance_logs table to new schema...');
-                
-                // Get existing data
-                const existingData = await this.all('SELECT * FROM performance_logs');
-                
-                // Drop old table
-                await this.run('DROP TABLE IF EXISTS performance_logs');
-                
-                // Create new table with correct structure
-                await this.run(`
-                    CREATE TABLE performance_logs (
-                        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_id INTEGER NOT NULL,
-                        participant_id INTEGER DEFAULT NULL,
-                        latency_ms FLOAT DEFAULT NULL,
-                        throughput_mbps FLOAT DEFAULT NULL,
-                        packet_loss_pct FLOAT DEFAULT NULL,
-                        jitter_ms FLOAT DEFAULT NULL,
-                        log_type TEXT NOT NULL CHECK (log_type IN ('connection', 'disconnection', 'error', 'warning', 'info', 'performance', 'content_share', 'screen_share', 'chat', 'attendance')),
-                        message TEXT NOT NULL,
-                        details TEXT,
-                        recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (session_id) REFERENCES sessions (id),
-                        FOREIGN KEY (participant_id) REFERENCES users (id)
-                    )
-                `);
-                
-                // Migrate data from old table if it exists
-                if (existingData.length > 0) {
-                    existingData.forEach(row => {
-                        // Map old columns to new ones
-                        const sessionId = row.session_id;
-                        const participantId = row.user_id || null; // Map user_id to participant_id
-                        const logType = row.log_type;
-                        const message = row.message;
-                        const details = row.details;
-                        const recordedAt = row.created_at || new Date().toISOString();
-                        
-                        this.run(`
-                            INSERT INTO performance_logs (
-                                session_id, participant_id, log_type, message, details, recorded_at
-                            ) VALUES (?, ?, ?, ?, ?, ?)
-                        `, [sessionId, participantId, logType, message, details, recordedAt]);
-                    });
-                }
-                
-                console.log('Performance logs table migration completed.');
+            const columns = tableInfo.map(column => column.name);
+            const needsRebuild =
+                !columns.includes('log_id') ||
+                !columns.includes('participant_id') ||
+                columns.includes('details');
+
+            if (needsRebuild) {
+                console.log('Rebuilding performance_logs table to current schema...');
+                await this.rebuildTable(
+                    'performance_logs',
+                    `
+                        CREATE TABLE performance_logs (
+                            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            session_id INTEGER NOT NULL,
+                            participant_id INTEGER DEFAULT NULL,
+                            latency_ms FLOAT DEFAULT NULL,
+                            throughput_mbps FLOAT DEFAULT NULL,
+                            packet_loss_pct FLOAT DEFAULT NULL,
+                            jitter_ms FLOAT DEFAULT NULL,
+                            log_type TEXT NOT NULL CHECK (log_type IN ('connection', 'disconnection', 'error', 'warning', 'info', 'performance', 'content_share', 'screen_share', 'chat', 'attendance')),
+                            message TEXT NOT NULL,
+                            recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (session_id) REFERENCES sessions (id),
+                            FOREIGN KEY (participant_id) REFERENCES users (id)
+                        )
+                    `,
+                    `
+                        INSERT INTO performance_logs (
+                            log_id, session_id, participant_id, latency_ms, throughput_mbps,
+                            packet_loss_pct, jitter_ms, log_type, message, recorded_at
+                        )
+                        SELECT
+                            ${columns.includes('log_id') ? 'log_id' : 'id'},
+                            session_id,
+                            ${columns.includes('participant_id') ? 'participant_id' : (columns.includes('user_id') ? 'user_id' : 'NULL')},
+                            ${columns.includes('latency_ms') ? 'latency_ms' : 'NULL'},
+                            ${columns.includes('throughput_mbps') ? 'throughput_mbps' : 'NULL'},
+                            ${columns.includes('packet_loss_pct') ? 'packet_loss_pct' : 'NULL'},
+                            ${columns.includes('jitter_ms') ? 'jitter_ms' : 'NULL'},
+                            log_type,
+                            message,
+                            ${columns.includes('recorded_at') ? 'recorded_at' : (columns.includes('created_at') ? 'created_at' : 'CURRENT_TIMESTAMP')}
+                        FROM performance_logs__old
+                    `
+                );
             }
+
+            await this.run(`
+                UPDATE performance_logs
+                SET
+                    latency_ms = COALESCE(latency_ms, 0),
+                    throughput_mbps = COALESCE(throughput_mbps, 0),
+                    packet_loss_pct = COALESCE(packet_loss_pct, 0),
+                    jitter_ms = COALESCE(jitter_ms, 0)
+            `);
         } catch (error) {
             console.error('Error migrating performance_logs table:', error);
-            // Don't throw error here, as the table might already have the correct structure
+        }
+    }
+
+    async migrateFeedbackTable() {
+        try {
+            const tableInfo = await this.all("PRAGMA table_info(user_feedback)");
+            const columns = tableInfo.map(column => column.name);
+            const needsRebuild =
+                columns.includes('screenshot_data') ||
+                !columns.includes('session_id') ||
+                !columns.includes('feedback_type') ||
+                !columns.includes('subject') ||
+                !columns.includes('issue_type') ||
+                !columns.includes('description') ||
+                !columns.includes('screenshot_name') ||
+                !columns.includes('screenshot_type') ||
+                !columns.includes('screenshot_path') ||
+                !columns.includes('status');
+
+            if (needsRebuild) {
+                console.log('Rebuilding user_feedback table to current schema...');
+                await this.rebuildTable(
+                    'user_feedback',
+                    `
+                        CREATE TABLE user_feedback (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            session_id INTEGER,
+                            feedback_type TEXT NOT NULL DEFAULT 'general' CHECK (feedback_type IN ('bug_report', 'feature_request', 'general', 'rating')),
+                            rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+                            subject TEXT,
+                            message TEXT NOT NULL,
+                            issue_type TEXT,
+                            description TEXT,
+                            screenshot_name TEXT,
+                            screenshot_type TEXT,
+                            screenshot_path TEXT,
+                            status TEXT DEFAULT 'pending',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users (id),
+                            FOREIGN KEY (session_id) REFERENCES sessions (id)
+                        )
+                    `,
+                    `
+                        INSERT INTO user_feedback (
+                            id, user_id, session_id, feedback_type, rating, subject, message,
+                            issue_type, description, screenshot_name, screenshot_type, screenshot_path,
+                            status, created_at
+                        )
+                        SELECT
+                            id,
+                            user_id,
+                            ${columns.includes('session_id') ? 'session_id' : 'NULL'},
+                            ${columns.includes('feedback_type') ? "COALESCE(feedback_type, 'general')" : "'general'"},
+                            rating,
+                            ${columns.includes('subject') ? 'subject' : 'NULL'},
+                            COALESCE(message, ${columns.includes('description') ? 'description' : 'NULL'}, ${columns.includes('subject') ? 'subject' : 'NULL'}, 'Feedback report'),
+                            ${columns.includes('issue_type') ? 'issue_type' : 'NULL'},
+                            COALESCE(${columns.includes('description') ? 'description' : 'NULL'}, message),
+                            ${columns.includes('screenshot_name') ? 'screenshot_name' : 'NULL'},
+                            ${columns.includes('screenshot_type') ? 'screenshot_type' : 'NULL'},
+                            ${columns.includes('screenshot_path') ? 'screenshot_path' : 'NULL'},
+                            ${columns.includes('status') ? "COALESCE(status, 'pending')" : "'pending'"},
+                            ${columns.includes('created_at') ? 'created_at' : 'CURRENT_TIMESTAMP'}
+                        FROM user_feedback__old
+                    `
+                );
+            }
+        } catch (error) {
+            console.error('Error migrating user_feedback table:', error);
+        }
+    }
+
+    async migrateAttendanceTable() {
+        try {
+            const tableInfo = await this.all("PRAGMA table_info(attendance)");
+            const columns = tableInfo.map(column => column.name);
+            const needsRebuild = columns.includes('duration_seconds') || !columns.includes('duration_minutes');
+
+            if (needsRebuild) {
+                console.log('Rebuilding attendance table to store minutes...');
+                await this.rebuildTable(
+                    'attendance',
+                    `
+                        CREATE TABLE attendance (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            session_id INTEGER NOT NULL,
+                            user_id INTEGER NOT NULL,
+                            joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            left_at DATETIME,
+                            duration_minutes INTEGER,
+                            FOREIGN KEY (session_id) REFERENCES sessions (id),
+                            FOREIGN KEY (user_id) REFERENCES users (id)
+                        )
+                    `,
+                    `
+                        INSERT INTO attendance (
+                            id, session_id, user_id, joined_at, left_at, duration_minutes
+                        )
+                        SELECT
+                            id,
+                            session_id,
+                            user_id,
+                            joined_at,
+                            left_at,
+                            COALESCE(
+                                ${columns.includes('duration_minutes') ? 'duration_minutes' : 'NULL'},
+                                CASE
+                                    WHEN ${columns.includes('duration_seconds') ? 'duration_seconds IS NOT NULL' : '0'} THEN MAX(1, ROUND(duration_seconds / 60.0))
+                                    WHEN left_at IS NOT NULL THEN MAX(1, ROUND((julianday(left_at) - julianday(joined_at)) * 24 * 60))
+                                    ELSE NULL
+                                END
+                            )
+                        FROM attendance__old
+                    `
+                );
+            }
+        } catch (error) {
+            console.error('Error migrating attendance table:', error);
+        }
+    }
+
+    async normalizeAttendanceDurations() {
+        try {
+            await this.run(`
+                UPDATE attendance
+                SET duration_minutes = CASE
+                    WHEN left_at IS NOT NULL THEN MAX(
+                        1,
+                        CAST(ROUND((julianday(left_at) - julianday(joined_at)) * 24 * 60) AS INTEGER)
+                    )
+                    ELSE NULL
+                END
+            `);
+        } catch (error) {
+            console.error('Error normalizing attendance durations:', error);
+        }
+    }
+
+    async rebuildTable(tableName, createSql, insertSql) {
+        await this.run('PRAGMA foreign_keys = OFF');
+        try {
+            await this.run('BEGIN TRANSACTION');
+            await this.run(`ALTER TABLE ${tableName} RENAME TO ${tableName}__old`);
+            await this.run(createSql);
+            await this.run(insertSql);
+            await this.run(`DROP TABLE ${tableName}__old`, [], { allowDangerous: true });
+            await this.run('COMMIT');
+        } catch (error) {
+            try {
+                await this.run('ROLLBACK');
+            } catch (_) {}
+            throw error;
+        } finally {
+            await this.run('PRAGMA foreign_keys = ON');
+        }
+    }
+
+    async detectUsersSchemaConstraints() {
+        try {
+            const tableInfo = await this.all("PRAGMA table_info(users)");
+            const emailColumn = tableInfo.find(column => column.name === 'email');
+            this.usersEmailRequired = Boolean(emailColumn && emailColumn.notnull);
+        } catch (error) {
+            this.usersEmailRequired = false;
+            console.error('Error checking users schema constraints:', error);
         }
     }
 
     // Helper method to run SQL queries
-    run(sql, params = []) {
+    isDangerousSql(sql) {
+        if (!sql) return false;
+        const normalized = String(sql).toUpperCase().replace(/\s+/g, ' ').trim();
+        return normalized.includes('DROP TABLE') || normalized.includes('DETACH DATABASE') || normalized.includes('PRAGMA WRITABLE_SCHEMA');
+    }
+
+    run(sql, params = [], options = {}) {
         return new Promise((resolve, reject) => {
+            if (this.isDangerousSql(sql) && !options.allowDangerous) {
+                reject(new Error('Dangerous SQL blocked'));
+                return;
+            }
             this.db.run(sql, params, function(err) {
                 if (err) {
                     console.error('SQL error:', err.message);
@@ -230,6 +409,10 @@ class Database {
     // Helper method to get single row
     get(sql, params = []) {
         return new Promise((resolve, reject) => {
+            if (this.isDangerousSql(sql)) {
+                reject(new Error('Dangerous SQL blocked'));
+                return;
+            }
             this.db.get(sql, params, (err, row) => {
                 if (err) {
                     console.error('SQL error:', err.message);
@@ -244,6 +427,10 @@ class Database {
     // Helper method to get multiple rows
     all(sql, params = []) {
         return new Promise((resolve, reject) => {
+            if (this.isDangerousSql(sql)) {
+                reject(new Error('Dangerous SQL blocked'));
+                return;
+            }
             this.db.all(sql, params, (err, rows) => {
                 if (err) {
                     console.error('SQL error:', err.message);
@@ -256,31 +443,46 @@ class Database {
     }
 
     // User management methods
-    async createUser(name, email, role, socketId = null) {
+    async createUser(name, email, role, connectionAddress = null) {
         try {
-            // Provide default email if not provided
-            const userEmail = email || `${name.toLowerCase().replace(/\s+/g, '.')}@local.user`;
+            const normalizedEmail = email && String(email).trim() ? String(email).trim().toLowerCase() : null;
+            const safeEmail = normalizedEmail || (
+                this.usersEmailRequired
+                    ? `${String(role || 'user').toLowerCase()}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}@local.must`
+                    : null
+            );
             
             const result = await this.run(
-                'INSERT OR REPLACE INTO users (name, email, role, socket_id, last_active) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
-                [name, userEmail, role, socketId]
+                'INSERT INTO users (name, email, role, socket_id, last_active) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+                [name, safeEmail, role, connectionAddress]
             );
             return result.id;
         } catch (error) {
+            if (error && error.message && error.message.includes('UNIQUE constraint failed: users.email') && email) {
+                const existingUser = await this.getUserByEmail(email);
+                if (existingUser) {
+                    await this.run(
+                        'UPDATE users SET name = ?, role = ?, socket_id = ?, last_active = CURRENT_TIMESTAMP WHERE id = ?',
+                        [name, role, connectionAddress, existingUser.id]
+                    );
+                    return existingUser.id;
+                }
+            }
             console.error('Error creating user:', error);
             throw error;
         }
     }
 
-    async updateUserSocket(userId, socketId) {
+    async updateUserSocket(userId, connectionAddress) {
         await this.run(
             'UPDATE users SET socket_id = ?, last_active = CURRENT_TIMESTAMP WHERE id = ?',
-            [socketId, userId]
+            [connectionAddress, userId]
         );
     }
 
     async getUserByEmail(email) {
-        return await this.get('SELECT * FROM users WHERE email = ?', [email]);
+        const normalizedEmail = email && String(email).trim() ? String(email).trim().toLowerCase() : null;
+        return await this.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
     }
 
     async getUserBySocketId(socketId) {
@@ -290,11 +492,22 @@ class Database {
     // Session management methods
     async createSession(roomId, presenterId, presenterName, title = null) {
         try {
-            const result = await this.run(
-                'INSERT OR REPLACE INTO sessions (room_id, presenter_id, presenter_name, title, status, created_at) VALUES (?, ?, ?, ?, "active", CURRENT_TIMESTAMP)',
+            await this.run(
+                `INSERT INTO sessions (room_id, presenter_id, presenter_name, title, status, created_at, ended_at)
+                 VALUES (?, ?, ?, ?, "active", CURRENT_TIMESTAMP, NULL)
+                 ON CONFLICT(room_id) DO UPDATE SET
+                    presenter_id = excluded.presenter_id,
+                    presenter_name = excluded.presenter_name,
+                    title = excluded.title,
+                    status = "active",
+                    created_at = CURRENT_TIMESTAMP,
+                    ended_at = NULL,
+                    participant_count = 0`,
                 [roomId, presenterId, presenterName, title]
             );
-            return result.id;
+
+            const session = await this.get('SELECT id FROM sessions WHERE room_id = ?', [roomId]);
+            return session?.id || null;
         } catch (error) {
             console.error('Error creating session:', error);
             throw error;
@@ -323,34 +536,33 @@ class Database {
         );
     }
 
-    // Content sharing methods
-    async startContentShare(sessionId, userId, shareType) {
-        const result = await this.run(
-            'INSERT INTO content_shares (session_id, user_id, share_type) VALUES (?, ?, ?)',
-            [sessionId, userId, shareType]
-        );
-        return result.id;
-    }
-
-    async endContentShare(shareId) {
-        const share = await this.get('SELECT started_at FROM content_shares WHERE id = ?', [shareId]);
-        if (share) {
-            const duration = Math.floor((Date.now() - new Date(share.started_at).getTime()) / 1000);
-            await this.run(
-                'UPDATE content_shares SET ended_at = CURRENT_TIMESTAMP, duration_seconds = ? WHERE id = ?',
-                [duration, shareId]
-            );
-        }
-    }
-
     // Simplified user feedback methods
-    async submitFeedback(userId, rating, message = null) {
+    async submitFeedback(userId, rating, payload = {}) {
         try {
+            const feedbackPayload = (typeof payload === 'object' && payload !== null) ? payload : { message: payload };
+            const normalizedMessage = feedbackPayload.message || feedbackPayload.description || 'Feedback report';
+            const normalizedFeedbackType = feedbackPayload.feedbackType || 'general';
+            const normalizedSubject = feedbackPayload.subject || feedbackPayload.issueType || 'Screen sharing issue';
             const result = await this.run(
-                'INSERT INTO user_feedback (user_id, rating, message) VALUES (?, ?, ?)',
-                [userId, rating, message]
+                `INSERT INTO user_feedback 
+                (user_id, session_id, feedback_type, rating, subject, message, issue_type, description, screenshot_name, screenshot_type, screenshot_path, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    userId,
+                    feedbackPayload.sessionId || null,
+                    normalizedFeedbackType,
+                    rating,
+                    normalizedSubject,
+                    normalizedMessage,
+                    feedbackPayload.issueType || null,
+                    feedbackPayload.description || normalizedMessage,
+                    feedbackPayload.screenshotName || null,
+                    feedbackPayload.screenshotType || null,
+                    feedbackPayload.screenshotPath || null,
+                    feedbackPayload.status || 'pending'
+                ]
             );
-            return result.lastID;
+            return result.id;
         } catch (error) {
             console.error('Error submitting feedback:', error);
             throw error;
@@ -376,6 +588,45 @@ class Database {
             console.error('Error fetching feedback:', error);
             return [];
         }
+    }
+
+    async updateFeedbackStatus(feedbackId, status) {
+        await this.run(
+            'UPDATE user_feedback SET status = ? WHERE id = ?',
+            [status, feedbackId]
+        );
+    }
+
+    async getAdminByUsername(username) {
+        const normalizedUsername = String(username || '').trim().toLowerCase();
+        return await this.get('SELECT * FROM admin_users WHERE username = ?', [normalizedUsername]);
+    }
+
+    async createAdmin(username, passwordHash, salt) {
+        const normalizedUsername = String(username || '').trim().toLowerCase();
+        const result = await this.run(
+            'INSERT INTO admin_users (username, password_hash, salt) VALUES (?, ?, ?)',
+            [normalizedUsername, passwordHash, salt]
+        );
+        return result.id;
+    }
+
+    async updateAdminLastLogin(adminId) {
+        await this.run(
+            'UPDATE admin_users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+            [adminId]
+        );
+    }
+
+    normalizeShareType(shareType) {
+        const rawType = String(shareType || '').toLowerCase();
+        const allowed = ['screen', 'audio', 'video'];
+        if (allowed.includes(rawType)) return rawType;
+
+        const mappedToScreen = ['presentation', 'document', 'application', 'window', 'tab'];
+        if (mappedToScreen.includes(rawType)) return 'screen';
+
+        return 'screen';
     }
 
     async getFeedbackStats() {
@@ -423,98 +674,14 @@ class Database {
         const stats = await this.get(`
             SELECT 
                 s.*,
-                COUNT(DISTINCT cs.id) as content_shares,
-                COUNT(DISTINCT pl.id) as performance_logs
+                0 as content_shares,
+                COUNT(DISTINCT pl.log_id) as performance_logs
             FROM sessions s
-            LEFT JOIN content_shares cs ON s.id = cs.session_id
             LEFT JOIN performance_logs pl ON s.id = pl.session_id
             WHERE s.id = ?
             GROUP BY s.id
         `, [sessionId]);
         return stats;
-    }
-
-    // Enhanced content tracking methods
-    async startContentShare(sessionId, userId, shareType, contentTitle = null, contentDescription = null, contentMetadata = null, slideCount = null) {
-        try {
-            const metadata = contentMetadata ? JSON.stringify(contentMetadata) : null;
-            const result = await this.run(
-                `INSERT INTO content_shares (session_id, user_id, share_type, content_title, content_description, content_metadata, slide_count, is_active) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-                [sessionId, userId, shareType, contentTitle, contentDescription, metadata, slideCount]
-            );
-            return result.id;
-        } catch (error) {
-            console.error('Error starting content share:', error);
-            throw error;
-        }
-    }
-
-    async updateContentShare(shareId, updates = {}) {
-        try {
-            const fields = [];
-            const values = [];
-            
-            if (updates.current_slide !== undefined) {
-                fields.push('current_slide = ?');
-                values.push(updates.current_slide);
-            }
-            if (updates.content_title !== undefined) {
-                fields.push('content_title = ?');
-                values.push(updates.content_title);
-            }
-            if (updates.content_description !== undefined) {
-                fields.push('content_description = ?');
-                values.push(updates.content_description);
-            }
-            if (updates.content_metadata !== undefined) {
-                fields.push('content_metadata = ?');
-                values.push(updates.content_metadata ? JSON.stringify(updates.content_metadata) : null);
-            }
-            
-            if (fields.length > 0) {
-                values.push(shareId);
-                await this.run(
-                    `UPDATE content_shares SET ${fields.join(', ')} WHERE id = ?`,
-                    values
-                );
-            }
-        } catch (error) {
-            console.error('Error updating content share:', error);
-            throw error;
-        }
-    }
-
-    async endContentShare(shareId) {
-        try {
-            const share = await this.get('SELECT started_at FROM content_shares WHERE id = ?', [shareId]);
-            if (share) {
-                const duration = Math.floor((Date.now() - new Date(share.started_at).getTime()) / 1000);
-                await this.run(
-                    'UPDATE content_shares SET ended_at = CURRENT_TIMESTAMP, duration_seconds = ?, is_active = 0 WHERE id = ?',
-                    [duration, shareId]
-                );
-            }
-        } catch (error) {
-            console.error('Error ending content share:', error);
-            throw error;
-        }
-    }
-
-    async getActiveContentShares(sessionId) {
-        return await this.all(
-            'SELECT cs.*, u.name as user_name, u.email as user_email FROM content_shares cs ' +
-            'JOIN users u ON cs.user_id = u.id WHERE cs.session_id = ? AND cs.is_active = 1 ORDER BY cs.started_at DESC',
-            [sessionId]
-        );
-    }
-
-    async getSessionContentHistory(sessionId) {
-        return await this.all(
-            'SELECT cs.*, u.name as user_name, u.email as user_email FROM content_shares cs ' +
-            'JOIN users u ON cs.user_id = u.id WHERE cs.session_id = ? ORDER BY cs.started_at DESC',
-            [sessionId]
-        );
     }
 
     async detectContentType(title, streamSettings = null) {
@@ -652,15 +819,23 @@ class Database {
     async updateAttendanceLeave(sessionId, userId) {
         try {
             const attendance = await this.get(
-                'SELECT id, joined_at FROM attendance WHERE session_id = ? AND user_id = ? AND left_at IS NULL',
+                'SELECT id FROM attendance WHERE session_id = ? AND user_id = ? AND left_at IS NULL',
                 [sessionId, userId]
             );
             
             if (attendance) {
-                const duration = Math.floor((Date.now() - new Date(attendance.joined_at).getTime()) / 1000);
                 await this.run(
-                    'UPDATE attendance SET left_at = CURRENT_TIMESTAMP, duration_seconds = ? WHERE id = ?',
-                    [duration, attendance.id]
+                    `
+                        UPDATE attendance
+                        SET
+                            left_at = CURRENT_TIMESTAMP,
+                            duration_minutes = MAX(
+                                1,
+                                CAST(ROUND((julianday(CURRENT_TIMESTAMP) - julianday(joined_at)) * 24 * 60) AS INTEGER)
+                            )
+                        WHERE id = ?
+                    `,
+                    [attendance.id]
                 );
             }
         } catch (error) {
@@ -675,7 +850,14 @@ class Database {
                 u.email,
                 a.joined_at,
                 a.left_at,
-                a.duration_seconds
+                CASE
+                    WHEN a.left_at IS NOT NULL THEN MAX(
+                        1,
+                        CAST(ROUND((julianday(a.left_at) - julianday(a.joined_at)) * 24 * 60) AS INTEGER)
+                    )
+                    WHEN a.duration_minutes IS NOT NULL THEN a.duration_minutes
+                    ELSE NULL
+                END AS duration_minutes
             FROM attendance a
             JOIN users u ON a.user_id = u.id
             WHERE a.session_id = ?
@@ -696,7 +878,7 @@ class Database {
         attendance.forEach(record => {
             const joinedAt = new Date(record.joined_at).toLocaleString();
             const leftAt = record.left_at ? new Date(record.left_at).toLocaleString() : 'Still in session';
-            const duration = record.duration_seconds ? Math.round(record.duration_seconds / 60) : 'N/A';
+            const duration = record.duration_minutes ?? 'N/A';
             
             csv += `"${record.name}","${record.email}","${joinedAt}","${leftAt}","${duration}"\n`;
         });
@@ -707,12 +889,25 @@ class Database {
     // Enhanced performance logging with detailed metrics
     async logPerformance(sessionId, participantId, logType, message, metrics = {}) {
         try {
+            if (!sessionId) {
+                return;
+            }
+
+            const metricValue = (value, fallback = 0) => {
+                if (value === null || value === undefined || value === '') return fallback;
+                const num = Number(value);
+                return Number.isFinite(num) ? num : fallback;
+            };
+            const fallbackThroughput = metrics.bandwidth_kbps !== undefined && metrics.bandwidth_kbps !== null
+                ? Number(metrics.bandwidth_kbps) / 1000
+                : null;
+
             // Ensure we have values even if metrics are empty
             const performanceData = {
-                latency_ms: metrics.latency_ms || null,
-                throughput_mbps: metrics.throughput_mbps || null,
-                packet_loss_pct: metrics.packet_loss_pct || null,
-                jitter_ms: metrics.jitter_ms || null,
+                latency_ms: metricValue(metrics.latency_ms ?? metrics.latency ?? metrics.connection_time_ms, 0),
+                throughput_mbps: metricValue(metrics.throughput_mbps ?? metrics.bandwidth ?? fallbackThroughput, 0),
+                packet_loss_pct: metricValue(metrics.packet_loss_pct ?? metrics.packetLoss, 0),
+                jitter_ms: metricValue(metrics.jitter_ms ?? metrics.jitter, 0),
                 connection_time_ms: metrics.connection_time_ms || null,
                 screen_share_fps: metrics.screen_share_fps || null,
                 video_bitrate_kbps: metrics.video_bitrate_kbps || null,
@@ -726,8 +921,8 @@ class Database {
 
             await this.run(
                 `INSERT INTO performance_logs 
-                (session_id, participant_id, latency_ms, throughput_mbps, packet_loss_pct, jitter_ms, log_type, message, details, recorded_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+                (session_id, participant_id, latency_ms, throughput_mbps, packet_loss_pct, jitter_ms, log_type, message, recorded_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
                 [
                     sessionId,
                     participantId,
@@ -736,8 +931,7 @@ class Database {
                     performanceData.packet_loss_pct,
                     performanceData.jitter_ms,
                     logType,
-                    message,
-                    JSON.stringify(performanceData)
+                    message
                 ]
             );
         } catch (error) {
@@ -770,20 +964,7 @@ class Database {
             query += ' ORDER BY pl.recorded_at DESC LIMIT ?';
             params.push(limit);
             
-            const logs = await this.all(query, params);
-            
-            // Parse details for each log
-            logs.forEach(log => {
-                if (log.details) {
-                    try {
-                        log.details = JSON.parse(log.details);
-                    } catch (e) {
-                        log.details = null;
-                    }
-                }
-            });
-            
-            return logs;
+            return await this.all(query, params);
         } catch (error) {
             console.error('Error fetching performance logs:', error);
             return [];
@@ -819,6 +1000,122 @@ class Database {
         } catch (error) {
             console.error('Error fetching performance stats:', error);
             return [];
+        }
+    }
+
+    async wipeOperationalData() {
+        const clearedTables = {};
+
+        await this.run('BEGIN TRANSACTION');
+        try {
+            clearedTables.attendance = (await this.run('DELETE FROM attendance')).changes;
+            clearedTables.performance_logs = (await this.run('DELETE FROM performance_logs')).changes;
+            clearedTables.user_feedback = (await this.run('DELETE FROM user_feedback')).changes;
+            clearedTables.sessions = (await this.run('DELETE FROM sessions')).changes;
+            clearedTables.users = (await this.run(`DELETE FROM users WHERE role != 'admin'`)).changes;
+            await this.run(`DELETE FROM sqlite_sequence WHERE name IN ('attendance','performance_logs','user_feedback','sessions','users')`);
+            await this.run('COMMIT');
+            return clearedTables;
+        } catch (error) {
+            try {
+                await this.run('ROLLBACK');
+            } catch (_) {}
+            throw error;
+        }
+    }
+
+    async deleteTableContents(tableName) {
+        const normalizedTable = String(tableName || '').trim().toLowerCase();
+        const summary = {};
+
+        await this.run('BEGIN TRANSACTION');
+        try {
+            switch (normalizedTable) {
+                case 'attendance':
+                case 'performance_logs':
+                case 'user_feedback':
+                case 'admin_users':
+                    summary[normalizedTable] = (await this.run(`DELETE FROM ${normalizedTable}`)).changes;
+                    break;
+                case 'sessions':
+                    summary.attendance = (await this.run('DELETE FROM attendance')).changes;
+                    summary.performance_logs = (await this.run('DELETE FROM performance_logs')).changes;
+                    summary.user_feedback = (await this.run('DELETE FROM user_feedback')).changes;
+                    summary.sessions = (await this.run('DELETE FROM sessions')).changes;
+                    break;
+                case 'users':
+                    summary.attendance = (await this.run('DELETE FROM attendance')).changes;
+                    summary.performance_logs = (await this.run('DELETE FROM performance_logs')).changes;
+                    summary.user_feedback = (await this.run('DELETE FROM user_feedback')).changes;
+                    summary.sessions = (await this.run('DELETE FROM sessions')).changes;
+                    summary.users = (await this.run('DELETE FROM users')).changes;
+                    break;
+                default:
+                    throw new Error('Unsupported table for delete operation');
+            }
+
+            await this.run('COMMIT');
+            return summary;
+        } catch (error) {
+            try {
+                await this.run('ROLLBACK');
+            } catch (_) {}
+            throw error;
+        }
+    }
+
+    async purgeExpiredData(retentionDays = 30) {
+        const safeRetentionDays = Math.max(1, Number(retentionDays) || 30);
+        const cutoffDate = new Date(Date.now() - safeRetentionDays * 24 * 60 * 60 * 1000).toISOString();
+        const expiredFeedback = await this.all(
+            'SELECT id, screenshot_path FROM user_feedback WHERE datetime(created_at) < datetime(?)',
+            [cutoffDate]
+        );
+
+        const summary = {
+            cutoffDate,
+            retentionDays: safeRetentionDays,
+            screenshotPaths: expiredFeedback
+                .map((row) => row.screenshot_path)
+                .filter(Boolean),
+            deleted: {}
+        };
+
+        await this.run('BEGIN TRANSACTION');
+        try {
+            summary.deleted.performance_logs = (await this.run(
+                'DELETE FROM performance_logs WHERE datetime(recorded_at) < datetime(?)',
+                [cutoffDate]
+            )).changes;
+            summary.deleted.attendance = (await this.run(
+                'DELETE FROM attendance WHERE datetime(joined_at) < datetime(?)',
+                [cutoffDate]
+            )).changes;
+            summary.deleted.user_feedback = (await this.run(
+                'DELETE FROM user_feedback WHERE datetime(created_at) < datetime(?)',
+                [cutoffDate]
+            )).changes;
+            summary.deleted.sessions = (await this.run(
+                'DELETE FROM sessions WHERE status = "ended" AND datetime(COALESCE(ended_at, created_at)) < datetime(?)',
+                [cutoffDate]
+            )).changes;
+            summary.deleted.users = (await this.run(
+                `DELETE FROM users
+                 WHERE role != 'admin'
+                   AND datetime(last_active) < datetime(?)
+                   AND id NOT IN (SELECT presenter_id FROM sessions WHERE presenter_id IS NOT NULL)
+                   AND id NOT IN (SELECT user_id FROM attendance)
+                   AND id NOT IN (SELECT user_id FROM user_feedback)
+                   AND id NOT IN (SELECT participant_id FROM performance_logs WHERE participant_id IS NOT NULL)`,
+                [cutoffDate]
+            )).changes;
+            await this.run('COMMIT');
+            return summary;
+        } catch (error) {
+            try {
+                await this.run('ROLLBACK');
+            } catch (_) {}
+            throw error;
         }
     }
 

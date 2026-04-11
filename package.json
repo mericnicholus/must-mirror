@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "build:prod": "node scripts/build-production.js",
+    "start:prod": "set NODE_ENV=production&& npm run build:prod && node server.js",
+    "cleanup:retention": "node scripts/run-retention-cleanup.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,7 +18,9 @@
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "javascript-obfuscator": "^5.4.1",
+    "nodemon": "^3.0.1",
+    "terser": "^5.46.1"
   },
   "keywords": [
     "webrtc",

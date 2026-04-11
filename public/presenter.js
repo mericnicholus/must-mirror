@@ -6,7 +6,11 @@ class Presenter {
         this.roomId = null;
         this.screenStream = null;
         this.micStream = null;
+        this.remoteAudioStream = new MediaStream();
+        this.incomingStreams = new Map();
         this.peerConnections = new Map();
+        this.audienceSize = 1;
+        this.activeQualityProfile = null;
         this.isSharing = false;
         this.chatMessages = [];
         this.unreadCount = 0;
@@ -14,12 +18,9 @@ class Presenter {
         this.connectionStartTime = null;
     }
 
-    initializeSocket() {
-        // Connect to different servers based on environment
-        const isProduction = window.location.hostname !== 'localhost';
-        const serverUrl = isProduction 
-            ? `http://${window.location.hostname}:3001` // Use current hostname with port 3001
-            : 'http://localhost:3001'; // Updated to port 3001
+    async initializeSocket() {
+        const clientConfig = await app.getClientConfig();
+        const serverUrl = clientConfig.socketServerUrl;
         
         this.socket = io(serverUrl);
         
@@ -28,19 +29,47 @@ class Presenter {
             app.updateSessionUI(this.roomId, 'Active');
             webrtcUtils.addLogMessage('logMessages', `Lecture Room Active: ${this.roomId}`, 'success');
             
-            // Show QR code button, chat notification icon, and attendance export button
+            // Show presenter tools for the active room
             document.getElementById('qrButtonContainer').style.display = 'block';
-            document.getElementById('chatNotificationIcon').style.display = 'flex';
             document.getElementById('attendanceExportContainer').style.display = 'block';
         });
 
-        this.socket.on('chat-message', (data) => {
-            this.addChatMessage(data);
-            // Show notification for new messages
-            if (typeof showChatNotification === 'function') {
-                showChatNotification();
+        this.socket.on('room-error', (message) => {
+            if (message) {
+                alert(message);
             }
         });
+
+        this.socket.on('chat-message', (data) => {
+            // Use the floating chat system
+            if (typeof displayChatMessage === 'function') {
+                const userName = document.getElementById('presName')?.value || 'Presenter';
+                if (data.sender !== userName) {
+                    // Ensure timestamp is present
+                    const timestamp = data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    displayChatMessage({
+                        text: data.text,
+                        sender: data.sender,
+                        timestamp: timestamp,
+                        isOwn: false
+                    });
+                    addChatNotificationBadge();
+                }
+            }
+        });
+
+        this.socket.on('screen-share-denied', (data) => {
+            const activeName = data?.activeSharerName || 'another participant';
+            if (this.screenStream) {
+                this.stopScreenShare();
+            }
+            alert(`Only one screen can be shared at a time. ${activeName} is already presenting.`);
+        });
+        
+        // Initialize chat listeners
+        if (typeof initializeChatListeners === 'function') {
+            initializeChatListeners(this.socket);
+        }
 
         this.socket.on('student-joined', (studentId) => {
             webrtcUtils.addLogMessage('logMessages', 'Student joined class', 'info');
@@ -48,6 +77,11 @@ class Presenter {
         });
 
         this.socket.on('participants-updated', (list) => this.updateParticipantsUI(list));
+        this.socket.on('class-scale-update', (data) => {
+            if (typeof updateScaleModeBanner === 'function') {
+                updateScaleModeBanner(data);
+            }
+        });
 
         this.socket.on('student-projection-requested', (data) => {
             if (!this.peerConnections.has(data.studentId)) {
@@ -63,11 +97,12 @@ class Presenter {
         this.socket.on('screen-stopped', (data) => {
             const video = document.getElementById('mainVideo');
             if (this.isSharing && this.screenStream) {
-                video.srcObject = this.screenStream;
+                this.showLocalPreview(this.screenStream);
                 video.style.display = 'block';
                 document.getElementById('waitingMessage').style.display = 'none';
             } else {
                 video.srcObject = null;
+                video.muted = false;
                 document.getElementById('waitingMessage').style.display = 'flex';
             }
         });
@@ -93,11 +128,8 @@ class Presenter {
                 };
 
                 pc.ontrack = (e) => {
-                    console.log("Student screen received");
-                    const video = document.getElementById('mainVideo');
-                    video.srcObject = e.streams[0];
-                    video.style.display = 'block';
-                    document.getElementById('waitingMessage').style.display = 'none';
+                    console.log("Student media received");
+                    this.handleIncomingTrack(data.sender, e);
                 };
             }
 
@@ -126,17 +158,42 @@ class Presenter {
         });
     }
 
-    createRoom() {
+    async createRoom() {
         const details = {
             name: document.getElementById('presName').value.trim(),
+            email: document.getElementById('presEmail').value.trim().toLowerCase(),
             topic: document.getElementById('presTopic').value.trim(),
             department: document.getElementById('presDept').value.trim(),
             room: document.getElementById('presRoom').value.trim()
         };
 
-        if (!details.name || !details.topic) return alert("Missing Info!");
+        if (!details.name) return alert('Presenter name is required.');
+        if (!details.email) return alert('Presenter email is required.');
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(details.email)) return alert('Enter a valid presenter email.');
+        if (!details.topic) return alert('Lecture topic is required.');
+        if (!details.department) return alert('Department is required.');
+        if (!details.room) return alert('Physical room or lab is required.');
 
-        const generatedId = `${details.department.substring(0,3).toUpperCase()}-${details.name.split(' ').pop().toUpperCase()}`;
+        let generatedId = null;
+        try {
+            const response = await fetch('/api/room-id', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ presenterDetails: details })
+            });
+            if (response.ok) {
+                const payload = await response.json();
+                generatedId = payload.roomId;
+            }
+        } catch (error) {
+            console.warn('Unable to fetch server room id, using local fallback');
+        }
+
+        if (!generatedId) {
+            generatedId = `${details.department.substring(0,3).toUpperCase()}-${details.name.split(' ').pop().toUpperCase()}`;
+        }
+
         this.socket.emit('create-room', { roomId: generatedId, presenterDetails: details });
     }
 
@@ -234,7 +291,6 @@ class Presenter {
 
     endSession() {
         this.clearChat();
-        document.getElementById('chatNotificationIcon').style.display = 'none';
         // Other cleanup logic...
     }
 
@@ -248,10 +304,18 @@ class Presenter {
                     if (sender) sender.replaceTrack(track);
                     else pc.addTrack(track, this.micStream);
                 });
+                await this.renegotiateAllPeers();
             } catch (e) { console.error("Mic Error", e); }
         } else if (this.micStream) {
             this.micStream.getTracks().forEach(t => t.stop());
             this.micStream = null;
+            this.peerConnections.forEach(pc => {
+                const audioSender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                if (audioSender) {
+                    audioSender.replaceTrack(null).catch(() => {});
+                }
+            });
+            await this.renegotiateAllPeers();
         }
     }
 
@@ -261,11 +325,20 @@ class Presenter {
                 video: true, 
                 audio: true 
             });
+
+            const screenVideoTrack = this.screenStream.getVideoTracks()[0];
+            if (screenVideoTrack) {
+                // Optimize for slides/text legibility over motion smoothness.
+                screenVideoTrack.contentHint = 'detail';
+            }
             
             const video = document.getElementById('mainVideo');
-            video.srcObject = this.screenStream;
+            this.showLocalPreview(this.screenStream);
             video.style.display = 'block';
             document.getElementById('waitingMessage').style.display = 'none';
+            this.isSharing = true;
+
+            await this.applyShareQualityProfile();
 
             // Get screen/share information for tracking
             const screenTrack = this.screenStream.getVideoTracks()[0];
@@ -312,7 +385,10 @@ class Presenter {
                 }
                 
                 // Renegotiate
-                const offer = await pc.createOffer();
+                const offer = await pc.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: true
+                });
                 await pc.setLocalDescription(offer);
                 this.socket.emit('offer', { target: peerId, roomId: this.roomId, offer });
             });
@@ -333,7 +409,9 @@ class Presenter {
             this.screenStream.getTracks().forEach(t => t.stop());
             this.screenStream = null;
         }
-        document.getElementById('mainVideo').srcObject = null;
+        const video = document.getElementById('mainVideo');
+        video.srcObject = null;
+        video.muted = false;
         document.getElementById('waitingMessage').style.display = 'flex';
         this.isSharing = false;
         
@@ -346,10 +424,8 @@ class Presenter {
 
         // Update UI state
         app.isSharing = false;
-        const btn = document.getElementById('shareBtn');
-        if (btn) {
-            btn.classList.remove('active');
-            btn.innerHTML = '<span class="icon">📺</span> Share Screen';
+        if (typeof syncActionButtons === 'function') {
+            syncActionButtons();
         }
         
         webrtcUtils.addLogMessage('logMessages', 'Screen sharing stopped', 'info');
@@ -369,8 +445,14 @@ class Presenter {
             this.micStream.getTracks().forEach(t => pc.addTrack(t, this.micStream));
         }
 
+        this.applySenderParametersForPeer(pc).catch(() => {});
+
         pc.onicecandidate = (e) => {
             if (e.candidate) this.socket.emit('ice-candidate', { target: studentId, candidate: e.candidate });
+        };
+
+        pc.ontrack = (e) => {
+            this.handleIncomingTrack(studentId, e);
         };
 
         // Add performance monitoring when connection is established
@@ -400,7 +482,10 @@ class Presenter {
             }
         }, 15000); // 15 second timeout
 
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+        });
         await pc.setLocalDescription(offer);
         this.socket.emit('offer', { target: studentId, roomId: this.roomId, offer });
         
@@ -533,15 +618,170 @@ class Presenter {
         }
     }
 
+    getOrCreateIncomingStream(peerId) {
+        let stream = this.incomingStreams.get(peerId);
+        if (!stream) {
+            stream = new MediaStream();
+            this.incomingStreams.set(peerId, stream);
+        }
+        return stream;
+    }
+
+    attachRemoteAudioTrack(track) {
+        const remoteAudio = document.getElementById('remoteAudio');
+        if (!remoteAudio) return;
+
+        if (!this.remoteAudioStream.getAudioTracks().some(existing => existing.id === track.id)) {
+            this.remoteAudioStream.addTrack(track);
+        }
+
+        remoteAudio.srcObject = this.remoteAudioStream;
+        remoteAudio.muted = false;
+        remoteAudio.volume = 1;
+        remoteAudio.play().catch(() => {});
+    }
+
+    showLocalPreview(stream) {
+        const video = document.getElementById('mainVideo');
+        if (!video) return;
+
+        video.srcObject = stream;
+        video.muted = true;
+        video.volume = 0;
+    }
+
+    showRemoteStream(stream) {
+        const video = document.getElementById('mainVideo');
+        if (!video) return;
+
+        video.srcObject = stream;
+        video.muted = false;
+        video.volume = 1;
+        video.style.display = 'block';
+    }
+
+    handleIncomingTrack(peerId, event) {
+        const mergedStream = this.getOrCreateIncomingStream(peerId);
+        const track = event.track;
+
+        if (!mergedStream.getTracks().some(existing => existing.id === track.id)) {
+            mergedStream.addTrack(track);
+        }
+
+        track.onended = () => {
+            mergedStream.removeTrack(track);
+            if (track.kind === 'audio') {
+                this.remoteAudioStream.removeTrack(track);
+            }
+        };
+
+        if (track.kind === 'audio') {
+            this.attachRemoteAudioTrack(track);
+        }
+
+        if (track.kind === 'video') {
+            this.showRemoteStream(mergedStream);
+            document.getElementById('waitingMessage').style.display = 'none';
+        }
+    }
+
+    async renegotiateAllPeers() {
+        if (!this.socket || !this.roomId) return;
+
+        for (const [peerId, pc] of this.peerConnections.entries()) {
+            if (pc.signalingState !== 'stable') continue;
+
+            const offer = await pc.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+            await pc.setLocalDescription(offer);
+            this.socket.emit('offer', { target: peerId, roomId: this.roomId, offer });
+        }
+    }
+
     updateParticipantsUI(participants) {
         const list = document.getElementById('studentGrid');
         document.getElementById('studentCount').textContent = participants.length;
+        this.audienceSize = participants.length + 1;
         list.innerHTML = participants.map(p => `
             <div class="participant-chip">
                 <div class="avatar">${p.name.charAt(0).toUpperCase()}</div>
                 <div class="p-name">${p.name}</div>
             </div>
         `).join('');
+
+        if (this.screenStream) {
+            this.applyShareQualityProfile().catch(() => {});
+        }
+    }
+
+    getShareQualityProfile() {
+        if (this.audienceSize >= 80) {
+            return { name: 'xlarge', width: 960, height: 540, frameRate: 6, bitrateKbps: 550 };
+        }
+        if (this.audienceSize >= 50) {
+            return { name: 'large', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
+        }
+        if (this.audienceSize >= 25) {
+            return { name: 'medium', width: 1280, height: 720, frameRate: 10, bitrateKbps: 1100 };
+        }
+        return { name: 'small', width: 1280, height: 720, frameRate: 15, bitrateKbps: 1600 };
+    }
+
+    async applyShareQualityProfile() {
+        if (!this.screenStream) return;
+        const track = this.screenStream.getVideoTracks()[0];
+        if (!track) return;
+
+        const profile = this.getShareQualityProfile();
+        const profileChanged = this.activeQualityProfile?.name !== profile.name;
+        this.activeQualityProfile = profile;
+
+        try {
+            await track.applyConstraints({
+                width: { ideal: profile.width, max: profile.width },
+                height: { ideal: profile.height, max: profile.height },
+                frameRate: { ideal: profile.frameRate, max: profile.frameRate }
+            });
+        } catch (error) {
+            // Some browsers reject strict screen-share constraints, continue with sender limits.
+        }
+
+        await Promise.all(
+            Array.from(this.peerConnections.values()).map((pc) =>
+                this.applySenderParametersForPeer(pc)
+            )
+        );
+
+        if (profileChanged) {
+            webrtcUtils.addLogMessage(
+                'logMessages',
+                `Broadcast optimized for ${this.audienceSize} participants (${profile.width}x${profile.height} @ ${profile.frameRate}fps)`,
+                'info'
+            );
+        }
+    }
+
+    async applySenderParametersForPeer(pc) {
+        const profile = this.activeQualityProfile || this.getShareQualityProfile();
+        const videoSender = pc.getSenders().find((sender) => sender.track && sender.track.kind === 'video');
+        if (!videoSender || !videoSender.getParameters) return;
+
+        const params = videoSender.getParameters();
+        if (!params.encodings || !params.encodings.length) {
+            params.encodings = [{}];
+        }
+
+        params.degradationPreference = 'maintain-resolution';
+        params.encodings[0].maxBitrate = profile.bitrateKbps * 1000;
+        params.encodings[0].maxFramerate = profile.frameRate;
+
+        try {
+            await videoSender.setParameters(params);
+        } catch (error) {
+            // Ignore per-browser sender tuning failures.
+        }
     }
 
     async exportAttendance() {

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MUST Mirror | Smart Presentation System</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-shell">
@@ -34,26 +33,53 @@
         </header>
 
         <main class="main-content">
+            <div id="scaleModeBanner" class="scale-mode-banner" style="display: none;"></div>
             <!-- ROLE SELECTION -->
             <div id="roleSelector" class="centered-view">
-                <div class="selection-card">
-                    <h2>Welcome to MUST Mirror</h2>
-                    <p>Select your role to begin the smart presentation session</p>
-                    <div class="role-options">
-                        <button class="role-btn" onclick="selectRole('presenter')">
-                            <span class="btn-icon">🎙️</span>
-                            <div class="btn-text">
-                                <strong>Presenter</strong>
-                                <small>Host a lecture & share screen</small>
+                <div class="selection-card landing-shell">
+                    <div class="landing-layout">
+                        <section class="landing-copy">
+                            <p class="landing-kicker">MUST Classroom</p>
+                            <h2>Classes that work on campus and beyond</h2>
+                            <p class="landing-subtext">
+                                Host and join lectures quickly with stable screen sharing, two-way audio, and offline-first local network support.
+                            </p>
+                            <div class="landing-actions">
+                                <button class="role-btn role-btn-primary" onclick="selectRole('presenter')">
+                                    <span class="btn-text">
+                                        <strong>Host Class</strong>
+                                        <small>Start as Host and share your screen</small>
+                                    </span>
+                                </button>
+                                <div class="join-inline">
+                                    <input type="text" id="landingRoomCode" placeholder="Enter room code (e.g. SOF-ERIC)" onkeydown="if(event.key==='Enter') quickJoinFromLanding()">
+                                    <button class="btn btn-secondary" onclick="quickJoinFromLanding()">Join</button>
+                                </div>
+                                <button class="btn btn-secondary landing-help-btn" onclick="openConnectivityHelpModal()">Connection Help</button>
                             </div>
-                        </button>
-                        <button class="role-btn" onclick="selectRole('student')">
-                            <span class="btn-icon">👨‍🎓</span>
-                            <div class="btn-text">
-                                <strong>Student</strong>
-                                <small>Join & watch the presentation</small>
+                            <div class="landing-pills">
+                                <span class="landing-pill">One presenter at a time</span>
+                                <span class="landing-pill">Live host/student chat</span>
+                                <span class="landing-pill">Offline-ready LAN mode</span>
                             </div>
-                        </button>
+                        </section>
+                        <aside class="landing-visual">
+                            <h3>Choose your role</h3>
+                            <div class="role-options">
+                                <button class="role-btn role-quick-card" onclick="selectRole('presenter')">
+                                    <div class="btn-text">
+                                        <strong>Host</strong>
+                                        <small>Create a room and teach</small>
+                                    </div>
+                                </button>
+                                <button class="role-btn role-quick-card" onclick="selectRole('student')">
+                                    <div class="btn-text">
+                                        <strong>Student</strong>
+                                        <small>Open join form and attend</small>
+                                    </div>
+                                </button>
+                            </div>
+                        </aside>
                     </div>
                 </div>
             </div>
@@ -64,10 +90,6 @@
                 <!-- SIDEBAR -->
                 <aside class="sidebar-column">
                     <!-- CHAT NOTIFICATION ICON -->
-                    <div id="chatNotificationIcon" class="chat-notification-icon" onclick="toggleChatView()" style="display: none;">
-                        💬
-                        <span id="chatRedDot" class="chat-red-dot" style="display: none;">●</span>
-                    </div>
 
                     <!-- REGULAR SIDEBAR CONTENT -->
                     <div id="regularSidebarContent">
@@ -100,54 +122,8 @@
 
                         <div id="attendanceExportContainer" class="sidebar-section" style="display: none;">
                             <button class="btn btn-success btn-block" onclick="exportAttendance()" style="height: 44px; font-size: 0.9rem; font-weight: 600;">
-                                📋 Export Attendance
+                                Export Attendance
                             </button>
-                        </div>
-                    </div>
-
-                    <!-- CHAT ONLY VIEW -->
-                    <div id="chatOnlyView" class="chat-only-view" style="display: none;">
-                        <div class="chat-only-header">
-                            <button class="back-btn" onclick="toggleChatView()">← Back</button>
-                            <h3>Class Chat</h3>
-                        </div>
-                        <div id="chatMessages" class="chat-messages">
-                            <!-- Messages will be added here -->
-                        </div>
-                        <div class="chat-input-container">
-                            <textarea id="chatInput" placeholder="Type a message..." maxlength="500" rows="2"></textarea>
-                            <button id="sendChatBtn" class="btn btn-primary" onclick="sendChatMessage()">Send</button>
-                        </div>
-                    </div>
-
-                    <!-- REGULAR CHAT SECTION -->
-                    <div id="chatSection" class="sidebar-section chat-section" style="display: none;">
-                        <div class="section-header">
-                            <h3>Class Chat</h3>
-                            <span id="unreadCount" class="badge" style="display: none;">0</span>
-                        </div>
-                        <div id="chatMessagesRegular" class="chat-messages">
-                            <!-- Messages will be added here -->
-                        </div>
-                        <!-- Direct chat input -->
-                        <div class="chat-input-container">
-                            <textarea id="chatInputRegular" placeholder="Type a message..." maxlength="500" rows="2"></textarea>
-                            <button id="sendChatBtnRegular" class="btn btn-primary" onclick="sendChatMessage()">Send</button>
-                        </div>
-                    </div>
-
-                    <!-- CHAT INPUT POPUP -->
-                    <div id="chatInputPopup" class="chat-input-popup" style="display: none;">
-                        <div class="chat-popup-content">
-                            <div class="chat-popup-header">
-                                <h4>Send Message</h4>
-                                <button class="close-popup-btn" onclick="closeChatInput()">×</button>
-                            </div>
-                            <textarea id="chatInputPopup" placeholder="Type your message..." maxlength="500" rows="3"></textarea>
-                            <div class="chat-popup-actions">
-                                <button class="btn btn-secondary" onclick="closeChatInput()">Cancel</button>
-                                <button class="btn btn-primary" onclick="sendChatMessageFromPopup()">Send</button>
-                            </div>
                         </div>
                     </div>
                 </aside>
@@ -161,23 +137,56 @@
                             <p style="opacity: 0.6; font-size: 0.875rem; margin-top: 8px;">The presenter will begin the session shortly</p>
                         </div>
                         
-                        <video id="mainVideo" autoplay playsinline muted></video>
+                        <video id="mainVideo" autoplay playsinline></video>
+                        <audio id="remoteAudio" autoplay></audio>
                         <div id="presenterInfoOverlay" class="info-overlay" style="display: none;"></div>
                     </div>
 
-                    <!-- ACTION BAR -->
+                    <!-- SESSION TIMER -->
+                    <div id="sessionTimer" class="session-timer" style="display: none;">
+                        <span id="timerDisplay">00:00:00</span>
+                    </div>
+
+                    <!-- ACTION BAR - Circular Icon Style -->
                     <div class="action-bar" style="display: none;">
-                        <button id="muteBtn" class="btn btn-action" onclick="toggleMute()">
-                            <span class="icon">🎤</span> Unmute
+                        <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Turn on microphone" aria-label="Turn on microphone">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                                <line x1="8" y1="23" x2="16" y2="23"></line>
+                            </svg>
+                            <span class="tooltip">Turn on microphone</span>
                         </button>
-                        <button id="shareBtn" class="btn btn-action" onclick="toggleShare()">
-                            <span class="icon">📺</span> Share Screen
+                        <button id="shareBtn" class="icon-btn" onclick="toggleShare()" title="Share screen" aria-label="Share screen">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                <line x1="8" y1="21" x2="16" y2="21"></line>
+                                <line x1="12" y1="17" x2="12" y2="21"></line>
+                                <polyline points="16 10 12 6 8 10"></polyline>
+                                <line x1="12" y1="6" x2="12" y2="14"></line>
+                            </svg>
+                            <span class="tooltip">Share screen</span>
                         </button>
-                        <button class="btn btn-action" onclick="openFeedbackModal()">
-                            <span class="icon">💬</span> Feedback
+                        <button id="chatBtn" class="icon-btn" onclick="toggleChat()" title="Chat with everyone" aria-label="Chat with everyone">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                <line x1="9" y1="10" x2="9.01" y2="10"></line>
+                                <line x1="15" y1="10" x2="15.01" y2="10"></line>
+                            </svg>
+                            <span class="tooltip">Chat with everyone</span>
                         </button>
-                        <button class="btn btn-action" onclick="toggleFullscreen()">
-                            <span class="icon">🔲</span> Fullscreen
+                        <button class="icon-btn" onclick="openFeedbackModal()" title="Give feedback">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                            <span class="tooltip">Give feedback</span>
+                        </button>
+                        <button class="icon-btn" onclick="toggleFullscreen()" title="Fullscreen">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                            </svg>
+                            <span class="tooltip">Fullscreen</span>
                         </button>
                     </div>
                 </div>
@@ -188,6 +197,7 @@
                         <h3>Create New Lecture</h3>
                         <div class="form-group">
                             <input type="text" id="presName" placeholder="Presenter Full Name">
+                            <input type="email" id="presEmail" placeholder="Presenter Email (e.g. host@must.ac.ug)">
                             <input type="text" id="presTopic" placeholder="Lecture Topic (e.g. Data Structures)">
                             <input type="text" id="presDept" placeholder="Department">
                             <input type="text" id="presRoom" placeholder="Physical Room/Lab">
@@ -217,12 +227,44 @@
         </main>
     </div>
 
+    <!-- FLOATING CHAT PANEL -->
+    <div id="chatPanel" class="chat-panel" style="display: none;">
+        <div class="chat-header">
+            <div class="chat-header-info">
+                <h4>Chat with Everyone</h4>
+                <span class="chat-status">Live</span>
+            </div>
+            <button class="chat-close-btn" onclick="toggleChat()">&times;</button>
+        </div>
+        <div class="chat-messages" id="floatingChatMessages">
+            <div class="chat-welcome">
+                <div class="welcome-icon">...</div>
+                <div class="welcome-text">Welcome to the session chat!</div>
+                <div class="welcome-subtitle">Send messages to everyone in the class</div>
+            </div>
+        </div>
+        <div class="chat-typing-indicator" id="typingIndicator" style="display: none;">
+            <span>Someone is typing</span>
+            <span class="typing-dots">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </span>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="floatingChatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendChatMessage()" oninput="handleTyping()">
+            <button class="chat-send-btn" onclick="sendChatMessage()">
+                <span class="send-icon">Send</span>
+            </button>
+        </div>
+    </div>
+
     <!-- QR CODE MODAL -->
     <div id="qrModal" class="modal-overlay" style="display: none;">
         <div class="qr-modal-card">
             <div class="qr-modal-header">
                 <h3>Scan QR Code to Join</h3>
-                <button class="modal-close-btn" onclick="closeQRModal()">✕</button>
+                <button class="modal-close-btn" onclick="closeQRModal()">&times;</button>
             </div>
             <div class="qr-modal-content">
                 <div class="qr-modal-qr-wrapper">
@@ -245,35 +287,91 @@
     <div id="feedbackModal" class="modal-overlay" style="display: none;">
         <div class="feedback-modal-card">
             <div class="feedback-modal-header">
-                <h3>⭐ Rate This Session</h3>
-                <button class="modal-close-btn" onclick="closeFeedbackModal()">✕</button>
+                <h3>Report A Screen Sharing Issue</h3>
+                <button class="modal-close-btn" onclick="closeFeedbackModal()">&times;</button>
             </div>
             <div class="feedback-modal-content">
-                <p style="text-align: center; color: var(--text); margin-bottom: 20px;">
-                    How was your experience today?
+                <p class="feedback-intro">
+                    Help us improve MUST Mirror by reporting what went wrong during this presentation session.
                 </p>
-                
-                <div class="rating-section">
-                    <div class="rating-group" id="ratingGroup">
-                        <span class="rating-star" data-rating="1">⭐</span>
-                        <span class="rating-star" data-rating="2">⭐</span>
-                        <span class="rating-star" data-rating="3">⭐</span>
-                        <span class="rating-star" data-rating="4">⭐</span>
-                        <span class="rating-star" data-rating="5">⭐</span>
-                    </div>
-                    <div class="rating-text" id="ratingText">Click on a star to rate</div>
+
+                <div id="feedbackConnectivity" class="feedback-connectivity offline">
+                    Offline: please go online before sending your report.
                 </div>
 
-                <div class="message-section">
-                    <label for="feedbackMessageInput" style="display: block; margin-bottom: 8px; color: var(--text); font-weight: 500;">Additional Comments (Optional):</label>
-                    <textarea id="feedbackMessageInput" placeholder="Share your thoughts about this session..." rows="4" style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 6px; font-size: 14px; resize: vertical; box-sizing: border-box;"></textarea>
+                <div class="feedback-field">
+                    <label for="feedbackIssueType">When you noticed this issue, what were you trying to do? <span>(required)</span></label>
+                    <select id="feedbackIssueType" class="feedback-select">
+                        <option value="">Choose an option</option>
+                        <option value="join-session">Join a lecture</option>
+                        <option value="watch-content">View shared content</option>
+                        <option value="present-content">Present content</option>
+                        <option value="audio-mic">Use microphone or hear audio</option>
+                        <option value="chat-message">Send or receive chat messages</option>
+                        <option value="attendance">Check attendance or room access</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="feedback-field rating-section">
+                    <label>Rate this experience <span>(required)</span></label>
+                    <div id="feedbackRatingGroup" class="rating-group" role="radiogroup" aria-label="Feedback rating">
+                        <span class="rating-star" data-rating="1" role="radio" aria-checked="false" tabindex="0">&#9733;</span>
+                        <span class="rating-star" data-rating="2" role="radio" aria-checked="false" tabindex="0">&#9733;</span>
+                        <span class="rating-star" data-rating="3" role="radio" aria-checked="false" tabindex="0">&#9733;</span>
+                        <span class="rating-star" data-rating="4" role="radio" aria-checked="false" tabindex="0">&#9733;</span>
+                        <span class="rating-star" data-rating="5" role="radio" aria-checked="false" tabindex="0">&#9733;</span>
+                    </div>
+                    <div id="feedbackRatingText" class="rating-text">Choose a rating before sending.</div>
+                </div>
+
+                <div class="feedback-field">
+                    <label for="feedbackMessageInput">Describe your issue <span>(required)</span></label>
+                    <textarea id="feedbackMessageInput" class="feedback-textarea" placeholder="Tell us what happened, what you expected, and what you saw on the screen." rows="5"></textarea>
+                    <small>Please do not include sensitive information.</small>
+                </div>
+
+                <div class="feedback-field">
+                    <label for="feedbackScreenshotInput">A screenshot will help us understand the issue better.</label>
+                    <label for="feedbackScreenshotInput" class="feedback-upload">
+                        <span>Upload screenshot</span>
+                        <input id="feedbackScreenshotInput" type="file" accept="image/*" onchange="handleFeedbackScreenshotChange(event)">
+                    </label>
+                    <div id="feedbackScreenshotName" class="feedback-upload-name">No screenshot selected</div>
+                    <img id="feedbackScreenshotPreview" class="feedback-screenshot-preview" alt="Feedback screenshot preview" style="display: none;">
                 </div>
 
                 <div id="feedbackMessage"></div>
             </div>
             <div class="feedback-modal-footer">
                 <button class="btn btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
-                <button class="btn btn-primary" id="submitRatingBtn" onclick="submitRating()" disabled>Submit Feedback</button>
+                <button class="btn btn-primary" id="submitRatingBtn" onclick="submitRating()">Send Report</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="connectivityHelpModal" class="modal-overlay" style="display: none;">
+        <div class="connectivity-modal-card">
+            <div class="connectivity-modal-header">
+                <h3>Bluetooth And Offline Connection Help</h3>
+                <button class="modal-close-btn" onclick="closeConnectivityHelpModal()">&times;</button>
+            </div>
+            <div class="connectivity-modal-content">
+                <p class="connectivity-note">
+                    Use Bluetooth tethering or hotspot sharing to create a network bridge, then open MUST Mirror using the host IP below.
+                </p>
+                <div class="connectivity-steps">
+                    <p><strong>1.</strong> Host starts MUST Mirror on one laptop.</p>
+                    <p><strong>2.</strong> Turn on Bluetooth tethering or personal hotspot on host device.</p>
+                    <p><strong>3.</strong> Pair other laptops/phones and join that shared network.</p>
+                    <p><strong>4.</strong> Open one of the host links below in student devices.</p>
+                </div>
+                <div id="connectivityAddressList" class="connectivity-address-list">
+                    <p>Loading host addresses...</p>
+                </div>
+            </div>
+            <div class="connectivity-modal-footer">
+                <button class="btn btn-secondary" onclick="closeConnectivityHelpModal()">Close</button>
             </div>
         </div>
     </div>
@@ -281,6 +379,7 @@
     <!-- SCRIPTS -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="security.js"></script>
     <script src="webrtc-utils.js"></script>
     <script src="utils.js"></script>
     <script src="presenter.js"></script>
@@ -310,196 +409,33 @@
             document.getElementById('qrModal').style.display = 'none';
         }
 
-        function toggleChatView() {
-            const chatSection = document.getElementById('chatSection');
-            const notificationIcon = document.getElementById('chatNotificationIcon');
-            
-            isChatOnlyView = !isChatOnlyView;
-            
-            if (isChatOnlyView) {
-                // Show chat section in sidebar
-                chatSection.style.display = 'flex';
-                notificationIcon.style.display = 'none';
-                
-                // Clear notifications
-                clearChatNotifications();
-            } else {
-                // Hide chat section in sidebar
-                chatSection.style.display = 'none';
-                notificationIcon.style.display = 'flex';
-            }
-        }
-
-        function showChatNotification() {
-            unreadMessages++;
-            const notificationIcon = document.getElementById('chatNotificationIcon');
-            const redDot = document.getElementById('chatRedDot');
-            const unreadCount = document.getElementById('unreadCount');
-            
-            if (isChatOnlyView) {
-                // Don't show notification if chat is already open
-                return;
-            }
-            
-            notificationIcon.style.display = 'flex';
-            redDot.style.display = 'block';
-            unreadCount.textContent = unreadMessages;
-            unreadCount.style.display = 'inline-block';
-        }
-
-        function clearChatNotifications() {
-            unreadMessages = 0;
-            const redDot = document.getElementById('chatRedDot');
-            const unreadCount = document.getElementById('unreadCount');
-            
-            redDot.style.display = 'none';
-            unreadCount.style.display = 'none';
-        }
-
-        function sendChatMessage() {
-            // Try regular chat input first, then others
-            const input = document.getElementById('chatInputRegular') || document.getElementById('chatInput') || document.getElementById('chatInputPopup');
-            const message = input.value.trim();
-            
-            if (!message) return;
-            
-            console.log('Sending message:', message); // Debug log
-            
-            // Send based on current role
-            if (app.currentRole === 'presenter') {
-                if (presenter && typeof presenter.sendChatMessage === 'function') {
-                    presenter.sendChatMessage(message);
-                } else {
-                    console.error('Presenter or sendChatMessage not available');
-                }
-            } else if (app.currentRole === 'student') {
-                if (student && typeof student.sendChatMessage === 'function') {
-                    student.sendChatMessage(message);
-                } else {
-                    console.error('Student or sendChatMessage not available');
-                }
-            } else {
-                console.error('No valid role set:', app.currentRole);
-            }
-            
-            input.value = '';
-            closeChatInput(); // Close popup after sending
-        }
-
-        function sendChatMessageFromPopup() {
-            sendChatMessage();
-        }
-
-        function openChatInput() {
-            document.getElementById('chatInputPopup').style.display = 'flex';
-            // Focus on the textarea
-            setTimeout(() => {
-                document.getElementById('chatInputPopup').focus();
-            }, 100);
-        }
-
-        function closeChatInput() {
-            document.getElementById('chatInputPopup').style.display = 'none';
-            document.getElementById('chatInputPopup').value = '';
-        }
-
-        // Handle Enter key in chat inputs - Shift+Enter for new line, Enter to send
-        document.addEventListener('DOMContentLoaded', function() {
-            const chatInputs = ['chatInput', 'chatInputRegular', 'chatInputPopup'];
-            chatInputs.forEach(inputId => {
-                const input = document.getElementById(inputId);
-                if (input) {
-                    input.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault(); // Prevent new line
-                            if (inputId === 'chatInputPopup') {
-                                sendChatMessageFromPopup();
-                            } else {
-                                sendChatMessage();
-                            }
-                        }
-                        // Allow Shift+Enter for new line (default behavior)
-                    });
-                    
-                    // Auto-resize textarea
-                    input.addEventListener('input', function() {
-                        this.style.height = 'auto';
-                        this.style.height = Math.min(this.scrollHeight, 80) + 'px';
-                    });
-                }
-            });
-
-            // Close popup when clicking outside
-            document.getElementById('chatInputPopup').addEventListener('click', function(e) {
-                if (e.target === this) {
-                    closeChatInput();
-                }
-            });
-        });
+        // Note: All chat functions are now in app.js: toggleChat, sendChatMessage, addChatNotificationBadge, etc.
 
         // Close modal when clicking outside
-        document.getElementById('qrModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeQRModal();
-            }
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('qrModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeQRModal();
+                }
+            });
+            
+            // Close chat panel when clicking outside (optional)
+            document.addEventListener('click', function(e) {
+                const chatPanel = document.getElementById('chatPanel');
+                const chatBtn = document.getElementById('chatBtn');
+                if (chatPanel && chatBtn && !chatPanel.contains(e.target) && !chatBtn.contains(e.target)) {
+                    // Optional: auto-close chat when clicking outside
+                    // chatPanel.style.display = 'none';
+                    // chatBtn.classList.remove('active');
+                }
+            });
         });
 
-        // Feedback rating system
-        const ratingTexts = {
-            1: 'Poor - Very dissatisfied',
-            2: 'Fair - Somewhat dissatisfied', 
-            3: 'Good - Neutral',
-            4: 'Very Good - Satisfied',
-            5: 'Excellent - Very satisfied'
-        };
-
-        // Initialize rating stars
         document.addEventListener('DOMContentLoaded', function() {
-            const ratingStars = document.querySelectorAll('#ratingGroup .rating-star');
-            const ratingText = document.getElementById('ratingText');
-            
-            ratingStars.forEach(star => {
-                star.addEventListener('click', function() {
-                    window.selectedRating = parseInt(this.dataset.rating);
-                    updateRatingStars();
-                    updateRatingText();
-                    document.getElementById('submitRatingBtn').disabled = false;
-                });
-
-                star.addEventListener('mouseenter', function() {
-                    const hoverRating = parseInt(this.dataset.rating);
-                    ratingStars.forEach((s, index) => {
-                        if (index < hoverRating) {
-                            s.classList.add('active');
-                        } else {
-                            s.classList.remove('active');
-                        }
-                    });
-                    ratingText.textContent = ratingTexts[hoverRating];
-                });
-            });
-
-            document.getElementById('ratingGroup').addEventListener('mouseleave', function() {
-                updateRatingStars();
-                updateRatingText();
-            });
-
-            function updateRatingStars() {
-                ratingStars.forEach((star, index) => {
-                    if (index < window.selectedRating) {
-                        star.classList.add('active');
-                    } else {
-                        star.classList.remove('active');
-                    }
-                });
-            }
-
-            function updateRatingText() {
-                if (window.selectedRating > 0) {
-                    ratingText.textContent = ratingTexts[window.selectedRating];
-                } else {
-                    ratingText.textContent = 'Click on a star to rate';
-                }
+            if (typeof updateFeedbackConnectivityStatus === 'function') {
+                updateFeedbackConnectivityStatus();
+                window.addEventListener('online', updateFeedbackConnectivityStatus);
+                window.addEventListener('offline', updateFeedbackConnectivityStatus);
             }
         });
 
@@ -509,6 +445,13 @@
                 closeFeedbackModal();
             }
         });
+
+        document.getElementById('connectivityHelpModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeConnectivityHelpModal();
+            }
+        });
     </script>
 </body>
 </html>
+

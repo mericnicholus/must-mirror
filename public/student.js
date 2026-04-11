@@ -11,6 +11,10 @@ class Student {
         this.peerConnections = new Map(); // Store connections for each sender
         this.screenStream = null;
         this.micStream = null;
+        this.remoteAudioStream = new MediaStream();
+        this.incomingStreams = new Map();
+        this.audienceSize = 1;
+        this.activeQualityProfile = null;
         this.presenterId = null;
         this.presenterStream = null;
         this.chatMessages = [];
@@ -22,15 +26,11 @@ class Student {
         this.connectionStartTime = null;
     }
 
-    initializeSocket() {
-        // Connect to different servers based on environment
-        const isProduction = window.location.hostname !== 'localhost';
-        const serverUrl = isProduction 
-            ? `http://${window.location.hostname}:3001` // Use current hostname with port 3001
-            : 'http://localhost:3001'; // Updated to port 3001
+    async initializeSocket() {
+        const clientConfig = await app.getClientConfig();
+        const serverUrl = clientConfig.socketServerUrl;
         
         console.log('Student connecting to:', serverUrl);
-        console.log('Is production:', isProduction);
         console.log('Current hostname:', window.location.hostname);
         
         this.socket = io(serverUrl);
@@ -50,14 +50,17 @@ class Student {
 
         this.socket.on('room-available', (room) => this.updateDiscoveryList(room));
 
+        this.socket.on('room-error', (message) => {
+            if (message) {
+                alert(message);
+            }
+        });
+
         this.socket.on('room-joined', (data) => {
             this.roomId = data.roomId;
             this.studentName = data.studentName;
             app.updateSessionUI(this.roomId, 'Joined');
             this.displayPresenterDetails(data.presenterDetails);
-            
-            // Show chat notification icon for students
-            document.getElementById('chatNotificationIcon').style.display = 'flex';
             
             // Ensure waiting message is visible when joining room
             document.getElementById('waitingMessage').style.display = 'flex';
@@ -82,12 +85,27 @@ class Student {
         });
 
         this.socket.on('chat-message', (data) => {
-            this.addChatMessage(data);
-            // Show notification for new messages
-            if (typeof showChatNotification === 'function') {
-                showChatNotification();
+            // Use the floating chat system
+            if (typeof displayChatMessage === 'function') {
+                const userName = document.getElementById('studentName')?.value || 'Student';
+                if (data.sender !== userName) {
+                    // Ensure timestamp is present
+                    const timestamp = data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    displayChatMessage({
+                        text: data.text,
+                        sender: data.sender,
+                        timestamp: timestamp,
+                        isOwn: false
+                    });
+                    addChatNotificationBadge();
+                }
             }
         });
+        
+        // Initialize chat listeners
+        if (typeof initializeChatListeners === 'function') {
+            initializeChatListeners(this.socket);
+        }
 
         this.socket.on('room-joined', (data) => {
             webrtcUtils.addLogMessage('logMessages', `Successfully joined room: ${this.roomId}`, 'success');
@@ -107,6 +125,14 @@ class Student {
             console.log('Student started screen sharing:', data);
         });
 
+        this.socket.on('screen-share-denied', (data) => {
+            const activeName = data?.activeSharerName || 'another participant';
+            if (this.screenStream) {
+                this.stopScreenShare();
+            }
+            alert(`Only one screen can be shared at a time. ${activeName} is already presenting.`);
+        });
+
         this.socket.on('offer', async (data) => this.handleOffer(data));
 
         this.socket.on('answer', async (data) => {
@@ -120,17 +146,23 @@ class Student {
         });
 
         this.socket.on('participants-updated', (list) => this.updateParticipantsUI(list));
+        this.socket.on('class-scale-update', (data) => {
+            if (typeof updateScaleModeBanner === 'function') {
+                updateScaleModeBanner(data);
+            }
+        });
 
         this.socket.on('screen-stopped', (data) => {
             const video = document.getElementById('mainVideo');
             
             // Only hide waiting message if we have a presenter stream
             if (this.presenterStream) {
-                video.srcObject = this.presenterStream;
+                this.showRemoteStream(this.presenterStream);
                 video.style.display = 'block';
                 document.getElementById('waitingMessage').style.display = 'none';
             } else {
                 video.srcObject = null;
+                video.muted = false;
                 // Show waiting message when no presenter stream is available
                 document.getElementById('waitingMessage').style.display = 'flex';
                 // User requested a "refresh" feel when presenter stops
@@ -159,7 +191,11 @@ class Student {
 
         console.log('Join details:', details);
 
-        if (!details.name || !details.roomId) return alert("Missing Info!");
+        if (!details.name) return alert('Student name is required.');
+        if (!details.email) return alert('Student email is required.');
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(details.email)) return alert('Enter a valid student email.');
+        if (!details.roomId) return alert('Room ID is required.');
 
         if (!this.socket || !this.socket.connected) {
             console.error('Socket not connected - cannot join room');
@@ -181,20 +217,36 @@ class Student {
                     if (sender) sender.replaceTrack(track);
                     else pc.addTrack(track, this.micStream);
                 });
+                await this.renegotiateAllPeers();
             } catch (e) { console.error("Mic Error", e); }
         } else if (this.micStream) {
             this.micStream.getTracks().forEach(t => t.stop());
             this.micStream = null;
+            this.peerConnections.forEach(pc => {
+                const audioSender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                if (audioSender) {
+                    audioSender.replaceTrack(null).catch(() => {});
+                }
+            });
+            await this.renegotiateAllPeers();
         }
     }
 
     async startScreenShare() {
         try {
             this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            const screenVideoTrack = this.screenStream.getVideoTracks()[0];
+            if (screenVideoTrack) {
+                screenVideoTrack.contentHint = 'detail';
+            }
+
             const video = document.getElementById('mainVideo');
-            video.srcObject = this.screenStream;
+            this.showLocalPreview(this.screenStream);
             video.style.display = 'block';
             document.getElementById('waitingMessage').style.display = 'none';
+            this.isSharing = true;
+
+            await this.applyShareQualityProfile();
 
             // Get screen/share information for tracking
             const screenTrack = this.screenStream.getVideoTracks()[0];
@@ -238,7 +290,10 @@ class Student {
                 }
                 
                 // Renegotiate
-                const offer = await pc.createOffer();
+                const offer = await pc.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: true
+                });
                 await pc.setLocalDescription(offer);
                 this.socket.emit('offer', { target: peerId, roomId: this.roomId, offer });
             });
@@ -260,11 +315,12 @@ class Student {
         
         const video = document.getElementById('mainVideo');
         if (this.presenterStream) {
-            video.srcObject = this.presenterStream;
+            this.showRemoteStream(this.presenterStream);
             video.style.display = 'block';
             document.getElementById('waitingMessage').style.display = 'none';
         } else {
             video.srcObject = null;
+            video.muted = false;
             document.getElementById('waitingMessage').style.display = 'flex';
         }
         
@@ -277,11 +333,10 @@ class Student {
 
         // Update UI state
         app.isSharing = false;
-        const btn = document.getElementById('shareBtn');
-        if (btn) {
-            btn.classList.remove('active');
-            btn.innerHTML = '<span class="icon">📺</span> Share Screen';
+        if (typeof syncActionButtons === 'function') {
+            syncActionButtons();
         }
+        this.isSharing = false;
     }
 
     async connectToPeer(peerId) {
@@ -298,23 +353,14 @@ class Student {
             this.micStream.getTracks().forEach(t => pc.addTrack(t, this.micStream));
         }
 
+        this.applySenderParametersForPeer(pc).catch(() => {});
+
         pc.onicecandidate = (e) => {
             if (e.candidate) this.socket.emit('ice-candidate', { target: peerId, candidate: e.candidate });
         };
 
         pc.ontrack = (e) => {
-            if (peerId === this.presenterId) {
-                this.presenterStream = e.streams[0];
-            }
-            const video = document.getElementById('mainVideo');
-            if (video.srcObject !== e.streams[0]) {
-                video.srcObject = e.streams[0];
-                video.style.display = 'block';
-                // Only hide waiting message if this is the presenter's stream
-                if (peerId === this.presenterId) {
-                    document.getElementById('waitingMessage').style.display = 'none';
-                }
-            }
+            this.handleIncomingTrack(peerId, e);
         };
 
         // Add performance monitoring when connection is established
@@ -344,7 +390,10 @@ class Student {
             }
         }, 15000); // 15 second timeout
 
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+        });
         await pc.setLocalDescription(offer);
         this.socket.emit('offer', { target: peerId, roomId: this.roomId, offer });
         
@@ -488,19 +537,7 @@ class Student {
             };
 
             pc.ontrack = (e) => {
-                if (data.sender === this.presenterId) {
-                    this.presenterStream = e.streams[0];
-                }
-                const video = document.getElementById('mainVideo');
-                if (video.srcObject !== e.streams[0]) {
-                    video.srcObject = e.streams[0];
-                    video.style.display = 'block';
-                    // Only hide waiting message if this is the presenter's stream
-                    if (data.sender === this.presenterId) {
-                        document.getElementById('waitingMessage').style.display = 'none';
-                    }
-                    video.muted = false;
-                }
+                this.handleIncomingTrack(data.sender, e);
             };
         }
 
@@ -525,6 +562,94 @@ class Student {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             this.socket.emit('answer', { target: data.sender, roomId: this.roomId, answer });
+        }
+    }
+
+    getOrCreateIncomingStream(peerId) {
+        let stream = this.incomingStreams.get(peerId);
+        if (!stream) {
+            stream = new MediaStream();
+            this.incomingStreams.set(peerId, stream);
+        }
+        return stream;
+    }
+
+    attachRemoteAudioTrack(track) {
+        const remoteAudio = document.getElementById('remoteAudio');
+        if (!remoteAudio) return;
+
+        if (!this.remoteAudioStream.getAudioTracks().some(existing => existing.id === track.id)) {
+            this.remoteAudioStream.addTrack(track);
+        }
+
+        remoteAudio.srcObject = this.remoteAudioStream;
+        remoteAudio.muted = false;
+        remoteAudio.volume = 1;
+        remoteAudio.play().catch(() => {});
+    }
+
+    showLocalPreview(stream) {
+        const video = document.getElementById('mainVideo');
+        if (!video) return;
+
+        video.srcObject = stream;
+        video.muted = true;
+        video.volume = 0;
+    }
+
+    showRemoteStream(stream) {
+        const video = document.getElementById('mainVideo');
+        if (!video) return;
+
+        video.srcObject = stream;
+        video.muted = false;
+        video.volume = 1;
+        video.style.display = 'block';
+    }
+
+    handleIncomingTrack(peerId, event) {
+        const mergedStream = this.getOrCreateIncomingStream(peerId);
+        const track = event.track;
+
+        if (!mergedStream.getTracks().some(existing => existing.id === track.id)) {
+            mergedStream.addTrack(track);
+        }
+
+        track.onended = () => {
+            mergedStream.removeTrack(track);
+            if (track.kind === 'audio') {
+                this.remoteAudioStream.removeTrack(track);
+            }
+        };
+
+        if (peerId === this.presenterId) {
+            this.presenterStream = mergedStream;
+        }
+
+        if (track.kind === 'audio') {
+            this.attachRemoteAudioTrack(track);
+        }
+
+        if (track.kind === 'video') {
+            this.showRemoteStream(mergedStream);
+            if (peerId === this.presenterId) {
+                document.getElementById('waitingMessage').style.display = 'none';
+            }
+        }
+    }
+
+    async renegotiateAllPeers() {
+        if (!this.socket || !this.roomId) return;
+
+        for (const [peerId, pc] of this.peerConnections.entries()) {
+            if (pc.signalingState !== 'stable') continue;
+
+            const offer = await pc.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+            await pc.setLocalDescription(offer);
+            this.socket.emit('offer', { target: peerId, roomId: this.roomId, offer });
         }
     }
 
@@ -554,12 +679,76 @@ class Student {
     updateParticipantsUI(participants) {
         const list = document.getElementById('studentGrid');
         document.getElementById('studentCount').textContent = participants.length;
+        this.audienceSize = participants.length + 1;
         list.innerHTML = participants.map(p => `
             <div class="participant-chip ${p.socketId === this.socketId ? 'highlight-me' : ''}">
                 <div class="avatar">${p.name.charAt(0).toUpperCase()}</div>
                 <div class="p-name">${p.name} ${p.socketId === this.socketId ? '(You)' : ''}</div>
             </div>
         `).join('');
+
+        if (this.screenStream) {
+            this.applyShareQualityProfile().catch(() => {});
+        }
+    }
+
+    getShareQualityProfile() {
+        if (this.audienceSize >= 80) {
+            return { name: 'xlarge', width: 960, height: 540, frameRate: 6, bitrateKbps: 550 };
+        }
+        if (this.audienceSize >= 50) {
+            return { name: 'large', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
+        }
+        if (this.audienceSize >= 25) {
+            return { name: 'medium', width: 1280, height: 720, frameRate: 10, bitrateKbps: 1100 };
+        }
+        return { name: 'small', width: 1280, height: 720, frameRate: 15, bitrateKbps: 1600 };
+    }
+
+    async applyShareQualityProfile() {
+        if (!this.screenStream) return;
+        const track = this.screenStream.getVideoTracks()[0];
+        if (!track) return;
+
+        const profile = this.getShareQualityProfile();
+        this.activeQualityProfile = profile;
+
+        try {
+            await track.applyConstraints({
+                width: { ideal: profile.width, max: profile.width },
+                height: { ideal: profile.height, max: profile.height },
+                frameRate: { ideal: profile.frameRate, max: profile.frameRate }
+            });
+        } catch (error) {
+            // Continue with sender parameter tuning if constraints are rejected.
+        }
+
+        await Promise.all(
+            Array.from(this.peerConnections.values()).map((pc) =>
+                this.applySenderParametersForPeer(pc)
+            )
+        );
+    }
+
+    async applySenderParametersForPeer(pc) {
+        const profile = this.activeQualityProfile || this.getShareQualityProfile();
+        const videoSender = pc.getSenders().find((sender) => sender.track && sender.track.kind === 'video');
+        if (!videoSender || !videoSender.getParameters) return;
+
+        const params = videoSender.getParameters();
+        if (!params.encodings || !params.encodings.length) {
+            params.encodings = [{}];
+        }
+
+        params.degradationPreference = 'maintain-resolution';
+        params.encodings[0].maxBitrate = profile.bitrateKbps * 1000;
+        params.encodings[0].maxFramerate = profile.frameRate;
+
+        try {
+            await videoSender.setParameters(params);
+        } catch (error) {
+            // Ignore sender tuning errors.
+        }
     }
 
     // Chat methods
