@@ -4,7 +4,6 @@ MUST Mirror is an offline-first classroom presentation and collaboration system 
 
 This README is the main project guide for the codebase. It is written to help you:
 - understand what the system does
-- explain it to a supervisor, lecturer, teammate, or examiner
 - set it up locally
 - trace key features back to the exact implementation files
 
@@ -219,10 +218,6 @@ Relevant code:
 - Performance logging API: `server.js:644`
 - SFU helper: `public/sfu-server.js`
 
-### Honest explanation for presentation
-You can explain it like this:
-> MUST Mirror is optimized for classroom LAN use and includes controls to keep quality stable, but actual capacity depends on the host laptop, browser, and network. The code already includes scale profiling and logging to support larger classes, while keeping the architecture simple enough for offline deployment.
-
 ## 8. Database Design
 
 The database is created and migrated in `database.js`.
@@ -342,12 +337,6 @@ Relevant code:
 - Admin token issuance: `server.js:262`
 - Client content protection: `public/app.js:747`
 - Production build: `scripts/build-production.js`
-
-Important truth to explain clearly:
-Browser-delivered frontend code can be made harder to inspect, but it cannot be made perfectly invisible. The strongest protection comes from combining:
-- production minification and obfuscation
-- secure backend APIs
-- moving sensitive logic server-side
 
 ## 13. Project Structure
 
@@ -496,50 +485,3 @@ Relevant code:
 - `server.js:1141`
 - `server.js:1258`
 
-## 18. How To Explain This Project To Someone Else
-
-A simple explanation you can use:
-
-> MUST Mirror is a local-first classroom screen sharing system for environments where internet is unreliable. It uses Node.js, Express, Socket.IO, WebRTC, and SQLite. The host creates a classroom session, students join over the same local network, and the system supports screen sharing, audio, chat, attendance tracking, feedback reporting, and admin monitoring. The room code is generated from the department and host name on the server, and the whole system is designed to remain useful even when internet access is poor or absent.
-
-### Short technical explanation
-> The server handles signaling, room state, security headers, admin APIs, and persistence. WebRTC carries the actual live media. SQLite stores users, sessions, attendance, feedback, and performance logs. The frontend is split between shared UI logic, host logic, and student logic.
-
-## 19. Code Reference Map
-
-If you need to present the code during review, these are the best places to open:
-
-| Topic | File reference |
-|---|---|
-| Room code generation | `server.js:221` |
-| Room creation | `server.js:876` |
-| Session persistence | `database.js:418` |
-| Student join logic | `server.js:966`, `public/student.js:176` |
-| Host screen share start | `public/presenter.js:312` |
-| Student screen share start | `public/student.js:225` |
-| One-sharer rule | `server.js:1141`, `server.js:1258` |
-| Two-way audio attachment | `public/presenter.js:620`, `public/student.js:567` |
-| Feedback API | `server.js:687` |
-| Feedback insert | `database.js:485` |
-| Screenshot file storage | `server.js:57` |
-| Attendance export | `database.js:877`, `server.js:469`, `public/presenter.js:784` |
-| Admin login | `server.js:316`, `admin-dashboard.html:43` |
-| Performance monitoring | `server.js:644`, `server.js:782`, `public/presenter.js:571` |
-| Connectivity help / copy URL | `server.js:199`, `public/app.js:813`, `public/app.js:834` |
-| Production obfuscation build | `scripts/build-production.js` |
-
-## 20. Final Notes
-
-This project is strongest when explained as a practical system for real classroom constraints, not just as a generic screen-sharing website. Its value is in:
-- offline-first operation
-- simple local deployment
-- classroom-specific controls
-- attendance and feedback tracking
-- admin visibility into real sessions
-
-If you extend it next, the strongest technical upgrades would be:
-- a stronger SFU/media distribution layer for very large classes
-- queued offline feedback sync
-- stricter admin/user role management
-- more server-side handling of sensitive logic
-- automated cleanup/archival for old logs and uploads
