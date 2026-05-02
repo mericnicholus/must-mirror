@@ -10,6 +10,7 @@
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--t)}
 .header{background:linear-gradient(120deg,var(--p),#4646b9);color:#fff;padding:14px 18px;position:sticky;top:0;z-index:9}
 .row{max-width:1480px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.header .row>div:last-child{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .title{font-weight:800}.container{max-width:1480px;margin:14px auto 22px;padding:0 12px}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .card{background:var(--card);border:1px solid var(--b);border-left:4px solid var(--a);border-radius:10px;padding:12px}
@@ -31,7 +32,22 @@ th,td{padding:8px 9px;border-bottom:1px solid #edf1fb;text-align:left;white-spac
 .note{font-size:.78rem;color:#556089;background:#f8faff;border:1px solid #e4e9f8;border-radius:8px;padding:7px 9px;margin-bottom:8px}
 .pag{display:none;justify-content:flex-end;gap:8px;align-items:center;margin-top:8px;font-size:.82rem;color:#556089}
 .msg{margin-bottom:8px;padding:9px 10px;border-radius:8px;font-size:.85rem}.ok{background:#e6f7ec;color:#14532d;border:1px solid #a7e4bf}.err{background:#fdecec;color:#7f1d1d;border:1px solid #f5b7b7}
-@media(max-width:960px){.stats{grid-template-columns:1fr 1fr}}@media(max-width:620px){.stats{grid-template-columns:1fr}.fg{min-width:100%}}
+@media(max-width:960px){.stats{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){
+  .header{padding:12px 14px}
+  .title{font-size:1rem;line-height:1.35}
+  .container{padding:0 10px;margin:10px auto 18px}
+  .sec-h,.sec-b{padding:10px}
+  .header .row{align-items:flex-start}
+  .header .row>div:last-child{width:100%}
+  .header .row>div:last-child .btn{flex:1 1 140px;justify-content:center}
+  table{min-width:720px}
+}
+@media(max-width:620px){
+  .stats{grid-template-columns:1fr}
+  .fg{min-width:100%}
+  input,select{font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -39,7 +55,7 @@ th,td{padding:8px 9px;border-bottom:1px solid #edf1fb;text-align:left;white-spac
 <div class="container">
 <div id="msg"></div>
 <div id="adminLoginModal" style="display:none;position:fixed;inset:0;background:rgba(12,16,40,.5);z-index:30;align-items:center;justify-content:center;padding:16px">
-<div style="width:100%;max-width:400px;background:#fff;border-radius:12px;border:1px solid #d7ddf2;box-shadow:0 14px 30px rgba(20,24,70,.2);padding:16px">
+<div style="width:100%;max-width:400px;background:linear-gradient(rgba(255,255,255,.965),rgba(255,255,255,.965)),url('/must logo.png') center center / 160px auto no-repeat,#fff;border-radius:12px;border:1px solid #d7ddf2;box-shadow:0 14px 30px rgba(20,24,70,.2);padding:16px">
 <h3 style="color:#1d2453;margin-bottom:8px">Admin Login</h3>
 <p style="font-size:.86rem;color:#556089;margin-bottom:12px">Sign in to access dashboard data.</p>
 <div class="fg" style="margin-bottom:8px"><label>Username</label><input id="adminUser" placeholder="admin"></div>
@@ -58,7 +74,7 @@ th,td{padding:8px 9px;border-bottom:1px solid #edf1fb;text-align:left;white-spac
 <section class="sec"><div class="sec-h">Users <button class="btn btn-s" onclick="exportMountToCsv('usersMount','users')">Export CSV</button></div><div class="sec-b"><div class="filters"><div class="fg"><label>Role</label><select id="fUserRole"><option value="">All</option><option value="presenter">Presenter</option><option value="student">Student</option><option value="admin">Admin</option></select></div><div class="fg"><label>Search</label><input id="fUserSearch" placeholder="Name or email"></div><button class="btn btn-p" onclick="loadUsers()">Apply</button></div><div id="usersMount"><div class="empty">Loading...</div></div></div></section>
 <section class="sec"><div class="sec-h">Performance Metrics <button class="btn btn-s" onclick="exportMountToCsv('perfMount','performance_metrics_page')">Export CSV</button></div><div class="sec-b"><div class="note">Performance table is paginated to 10 rows per page for readability.</div><div class="filters"><div class="fg"><label>Room ID</label><input id="fPerfRoom" placeholder="Room"></div><div class="fg"><label>Log Type</label><select id="fPerfType"><option value="">All</option><option value="connection">Connection</option><option value="disconnection">Disconnection</option><option value="error">Error</option><option value="warning">Warning</option><option value="info">Info</option><option value="performance">Performance</option><option value="content_share">Content Share</option><option value="screen_share">Screen Share</option><option value="chat">Chat</option><option value="attendance">Attendance</option></select></div><div class="fg"><label>Fetch Limit</label><select id="fPerfLimit"><option value="100">100</option><option value="200" selected>200</option><option value="500">500</option></select></div><button class="btn btn-p" onclick="reloadPerf()">Apply</button></div><div id="perfMount"><div class="empty">Loading...</div></div><div class="pag" id="perfPag"><button class="btn btn-s" id="pPrev" onclick="goPerf(-1)">Previous</button><span id="pInfo"></span><button class="btn btn-s" id="pNext" onclick="goPerf(1)">Next</button></div></div></section>
 <section class="sec"><div class="sec-h">Feedback <button class="btn btn-s" onclick="exportMountToCsv('feedbackMount','feedback')">Export CSV</button></div><div class="sec-b"><div class="filters"><div class="fg"><label>Limit</label><select id="fFbLimit"><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option></select></div><button class="btn btn-p" onclick="loadFeedback()">Refresh</button></div><div id="feedbackMount"><div class="empty">Loading...</div></div></div></section>
-<section class="sec"><div class="sec-h">Admin Maintenance</div><div class="sec-b"><div class="note">Dangerous actions require the separate admin confirmation code. By default this code matches the admin password unless `ADMIN_ACTION_CODE` is set in the environment.</div><div class="filters"><div class="fg"><label>Confirmation Code</label><input id="dangerCode" type="password" placeholder="Enter admin confirmation code"></div><div class="fg"><label>Retention Days</label><input id="retentionDays" type="number" min="1" value="30"></div><button class="btn btn-p" onclick="runRetentionCleanup()">Run 30-Day Cleanup</button><button class="btn btn-s" onclick="wipeOperationalData()" style="background:#ffe3e0;color:#8a1f14;border:1px solid #f2bbb4">Delete All Classroom Data</button></div><div class="filters"><div class="fg"><label>Delete Table</label><select id="dangerTable"><option value="attendance">attendance</option><option value="performance_logs">performance_logs</option><option value="user_feedback">user_feedback</option><option value="sessions">sessions</option><option value="users">users</option><option value="admin_users">admin_users</option></select></div><button class="btn btn-s" onclick="deleteSelectedTable()" style="background:#fff2d6;color:#7a4a00;border:1px solid #f0d28a">Delete Selected Table Data</button></div></div></section>
+<section class="sec"><div class="sec-h">Admin Maintenance</div><div class="sec-b"><div class="note">Dangerous actions require the admin confirmation code.</div><div class="filters"><div class="fg"><label>Confirmation Code</label><input id="dangerCode" type="password" placeholder="Enter admin confirmation code"></div><div class="fg"><label>Retention Days</label><input id="retentionDays" type="number" min="1" value="30"></div><button class="btn btn-p" onclick="runRetentionCleanup()">Run 30-Day Cleanup</button><button class="btn btn-s" onclick="wipeOperationalData()" style="background:#ffe3e0;color:#8a1f14;border:1px solid #f2bbb4">Delete All Classroom Data</button></div><div class="filters"><div class="fg"><label>Delete Table</label><select id="dangerTable"><option value="attendance">attendance</option><option value="performance_logs">performance_logs</option><option value="user_feedback">user_feedback</option><option value="sessions">sessions</option><option value="users">users</option><option value="admin_users">admin_users</option></select></div><button class="btn btn-s" onclick="deleteSelectedTable()" style="background:#fff2d6;color:#7a4a00;border:1px solid #f0d28a">Delete Selected Table Data</button></div></div></section>
 <script src="/security.js"></script>
 <script>
 if(window.MustMirrorSecurity&&typeof window.MustMirrorSecurity.protectPage==='function'){window.MustMirrorSecurity.protectPage()}

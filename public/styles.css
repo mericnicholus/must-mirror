@@ -1002,8 +1002,18 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
 }
 
 @media (max-width: 1024px) {
-    .dashboard-layout { grid-template-columns: 1fr; }
-    .sidebar-column { display: none; }
+    .dashboard-layout {
+        grid-template-columns: 1fr;
+        overflow: auto;
+        padding: 16px;
+    }
+    .sidebar-column {
+        display: flex;
+        border-left: none;
+        padding: 18px;
+        max-height: none;
+        order: 2;
+    }
 }
 
 /* --- MOBILE RESPONSIVENESS (PHONES) --- */
@@ -1062,6 +1072,12 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     .main-content {
         overflow: auto;
         height: auto;
+    }
+
+    .dashboard-layout {
+        padding: 12px;
+        gap: 12px;
+        align-content: start;
     }
 
     .selection-card {
@@ -1131,13 +1147,31 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     }
 
     .video-column {
-        height: calc(100vh - 60px);
+        min-height: 52vh;
+        height: auto;
         overflow: hidden;
-        border-radius: 0;
+        border-radius: 20px;
     }
 
     .video-container {
+        min-height: 52vh;
         height: 100%;
+    }
+
+    .sidebar-column {
+        padding: 16px;
+        border-radius: 20px;
+        overflow: visible;
+    }
+
+    .sidebar-section {
+        margin-bottom: 20px;
+    }
+
+    #qrCode,
+    #qrModalCode {
+        max-width: 100%;
+        height: auto;
     }
 
     .chat-panel {
@@ -1267,6 +1301,20 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
         height: 28px;
         padding: 0 8px;
         font-size: 0.72rem;
+    }
+
+    .dashboard-layout {
+        padding: 10px;
+    }
+
+    .video-column,
+    .video-container {
+        min-height: 46vh;
+    }
+
+    .sidebar-column {
+        padding: 14px;
+        border-radius: 16px;
     }
 }
 
@@ -2279,13 +2327,17 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     #roleSelector.centered-view {
         padding: 12px 10px;
         align-items: flex-start;
-        max-height: calc(100vh - 80px) !important;
+        max-height: none !important;
+        height: auto;
+        min-height: calc(100vh - 70px);
+        overflow-y: auto;
     }
 
     #roleSelector .selection-card.landing-shell {
         padding: 16px 12px;
         border-radius: 16px;
-        max-height: calc(100vh - 100px);
+        max-height: none;
+        overflow: visible;
     }
 
     .landing-layout {
@@ -2317,6 +2369,85 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
 
     .chat-panel {
         max-height: calc(100vh - 96px) !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #roleSelector .selection-card.landing-shell {
+        padding: 14px;
+        border-radius: 14px;
+    }
+
+    .landing-layout {
+        gap: 14px;
+    }
+
+    #roleSelector .landing-copy h2 {
+        font-size: 1.45rem;
+        line-height: 1.15;
+    }
+
+    .landing-copy {
+        gap: 10px;
+        padding: 0;
+    }
+
+    .landing-subtext {
+        font-size: 0.92rem;
+        line-height: 1.45;
+        max-width: none;
+    }
+
+    .landing-visual {
+        padding: 14px;
+        gap: 10px;
+    }
+
+    .role-btn.role-btn-primary,
+    .landing-help-btn,
+    .join-inline .btn {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .join-inline {
+        width: 100%;
+    }
+}
+
+@media (max-width: 560px) {
+    #roleSelector.centered-view {
+        padding: 8px;
+    }
+
+    #roleSelector .selection-card.landing-shell {
+        padding: 12px;
+        box-shadow: 0 10px 22px rgba(20, 26, 77, 0.12);
+    }
+
+    .landing-kicker {
+        font-size: 0.64rem;
+        padding: 4px 8px;
+    }
+
+    #roleSelector .landing-copy h2 {
+        font-size: 1.3rem;
+    }
+
+    .landing-subtext {
+        font-size: 0.88rem;
+    }
+
+    .landing-pills {
+        display: none;
+    }
+
+    .landing-visual h3 {
+        font-size: 0.95rem;
+    }
+
+    .role-btn.role-quick-card {
+        padding: 10px;
     }
 }
 

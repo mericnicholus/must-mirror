@@ -56,6 +56,12 @@ class Student {
             }
         });
 
+        this.socket.on('student-projection-disabled', (data) => {
+            if (data?.message) {
+                alert(data.message);
+            }
+        });
+
         this.socket.on('room-joined', (data) => {
             this.roomId = data.roomId;
             this.studentName = data.studentName;
@@ -211,6 +217,9 @@ class Student {
         if (enabled) {
             try {
                 this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                if (this.peerConnections.size === 0 && this.roomId) {
+                    this.socket.emit('request-student-projection', { roomId: this.roomId });
+                }
                 this.peerConnections.forEach(pc => {
                     const track = this.micStream.getAudioTracks()[0];
                     const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
@@ -234,7 +243,10 @@ class Student {
 
     async startScreenShare() {
         try {
-            this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            const allowSystemAudio = typeof app?.isSystemAudioAllowed === 'function'
+                ? app.isSystemAudioAllowed()
+                : true;
+            this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: allowSystemAudio });
             const screenVideoTrack = this.screenStream.getVideoTracks()[0];
             if (screenVideoTrack) {
                 screenVideoTrack.contentHint = 'detail';
@@ -247,6 +259,14 @@ class Student {
             this.isSharing = true;
 
             await this.applyShareQualityProfile();
+
+            if (!allowSystemAudio) {
+                webrtcUtils.addLogMessage(
+                    'logMessages',
+                    'Presentation mode is active. System/tab audio capture is disabled to keep large classes stable.',
+                    'warning'
+                );
+            }
 
             // Get screen/share information for tracking
             const screenTrack = this.screenStream.getVideoTracks()[0];
@@ -487,6 +507,10 @@ class Student {
 
     // Start performance monitoring for a connection
     startPerformanceMonitoring(peerId, peerConnection) {
+        if (!this.shouldMonitorPeerPerformance()) {
+            return;
+        }
+
         const stopMonitoring = webrtcUtils.monitorPerformance(peerConnection, (performanceData) => {
             // Log performance data periodically
             this.logPerformanceMetrics(peerId, performanceData);
@@ -693,16 +717,20 @@ class Student {
     }
 
     getShareQualityProfile() {
-        if (this.audienceSize >= 80) {
-            return { name: 'xlarge', width: 960, height: 540, frameRate: 6, bitrateKbps: 550 };
+        if (this.audienceSize >= 40) {
+            return { name: 'xlarge', width: 854, height: 480, frameRate: 4, bitrateKbps: 300 };
         }
-        if (this.audienceSize >= 50) {
-            return { name: 'large', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
+        if (this.audienceSize >= 20) {
+            return { name: 'large', width: 960, height: 540, frameRate: 6, bitrateKbps: 450 };
         }
-        if (this.audienceSize >= 25) {
-            return { name: 'medium', width: 1280, height: 720, frameRate: 10, bitrateKbps: 1100 };
+        if (this.audienceSize >= 10) {
+            return { name: 'medium', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
         }
-        return { name: 'small', width: 1280, height: 720, frameRate: 15, bitrateKbps: 1600 };
+        return { name: 'small', width: 1280, height: 720, frameRate: 12, bitrateKbps: 1200 };
+    }
+
+    shouldMonitorPeerPerformance() {
+        return this.audienceSize <= 8;
     }
 
     async applyShareQualityProfile() {

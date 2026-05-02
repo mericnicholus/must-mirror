@@ -11,6 +11,7 @@
     "cleanup:retention": "node scripts/run-retention-cleanup.js"
   },
   "dependencies": {
+    "@journeyapps/sqlcipher": "^5.3.1",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "qrcode": "^1.5.3",
@@ -29,5 +30,5 @@
     "presentation"
   ],
   "author": "MUST Research Project",
-  "license": "MIT"
+  "license": "Mbarara University of Science and Technology - FCI"
 }

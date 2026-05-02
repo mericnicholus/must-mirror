@@ -22,7 +22,10 @@
         }
 
         .feedback-container {
-            background: white;
+            background:
+                linear-gradient(rgba(255,255,255,0.965), rgba(255,255,255,0.965)),
+                url("must logo.png") center center / 180px auto no-repeat,
+                white;
             border-radius: 16px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.2);
             max-width: 500px;
@@ -161,13 +164,39 @@
         }
 
         @media (max-width: 600px) {
+            body {
+                align-items: flex-start;
+                padding: 0.75rem;
+            }
+
             .feedback-container {
-                margin: 1rem;
+                margin: 0;
+                border-radius: 14px;
             }
             
             .feedback-header,
             .feedback-form {
-                padding: 1.5rem;
+                padding: 1.1rem;
+            }
+
+            .feedback-header h1 {
+                font-size: 1.2rem;
+            }
+
+            .form-group input,
+            .form-group select,
+            .form-group textarea,
+            .btn {
+                font-size: 16px;
+            }
+
+            .rating-group {
+                gap: 0.25rem;
+                flex-wrap: wrap;
+            }
+
+            .star {
+                font-size: 1.7rem;
             }
         }
     </style>

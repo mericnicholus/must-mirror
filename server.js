@@ -232,15 +232,35 @@ app.get('/api/network-info', (req, res) => {
   });
 });
 
-function generateRoomIdFromDetails(presenterDetails = {}) {
-  const rawName = String(presenterDetails.name || '').trim().toUpperCase();
-  const rawDept = String(presenterDetails.department || presenterDetails.dept || '').trim().toUpperCase();
-  const cleanName = rawName.replace(/[^A-Z\s]/g, '');
-  const cleanDept = rawDept.replace(/[^A-Z]/g, '');
-  const deptPrefix = (cleanDept || 'CLS').slice(0, 3).padEnd(3, 'X');
-  const namePart = cleanName.split(/\s+/).filter(Boolean).pop() || 'HOST';
-  const suffix = namePart.slice(0, 5).padEnd(3, 'X');
-  return `${deptPrefix}-${suffix}`;
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_SEGMENTS = [3, 4, 3];
+
+function generateSecureRoomId() {
+  const segments = ROOM_CODE_SEGMENTS.map((segmentLength) => {
+    let segment = '';
+    for (let index = 0; index < segmentLength; index += 1) {
+      segment += ROOM_CODE_ALPHABET[crypto.randomInt(0, ROOM_CODE_ALPHABET.length)];
+    }
+    return segment;
+  });
+
+  return segments.join('-');
+}
+
+async function generateUniqueRoomId(maxAttempts = 20) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const candidate = generateSecureRoomId();
+    if (rooms.has(candidate)) {
+      continue;
+    }
+
+    const existingSession = await database.getSession(candidate);
+    if (!existingSession) {
+      return candidate;
+    }
+  }
+
+  throw new Error('Unable to generate a unique room code');
 }
 
 function sanitizeRoomId(roomId = '') {
@@ -277,8 +297,8 @@ function deleteFeedbackFiles(relativePaths = []) {
   return deletedPaths;
 }
 
-const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
-const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || 'MustMirror@Admin123');
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || '').trim().toLowerCase();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || '');
 const ADMIN_ACTION_CODE = String(process.env.ADMIN_ACTION_CODE || ADMIN_PASSWORD);
 const ADMIN_SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 1000 * 60 * 60 * 12);
 const DATA_RETENTION_DAYS = Math.max(1, Number(process.env.DATA_RETENTION_DAYS || 30));
@@ -390,14 +410,24 @@ async function runRetentionCleanup(retentionDays = DATA_RETENTION_DAYS) {
   };
 }
 
-app.post('/api/room-id', (req, res) => {
+app.post('/api/room-id', async (req, res) => {
   const { presenterDetails } = req.body || {};
-  if (!presenterDetails || !presenterDetails.name) {
+  if (!presenterDetails || typeof presenterDetails !== 'object') {
     return res.status(400).json({ error: 'Presenter details are required' });
   }
 
-  const generatedRoomId = generateRoomIdFromDetails(presenterDetails);
-  return res.json({ roomId: generatedRoomId });
+  const presenterValidationError = validatePresenterDetails(presenterDetails);
+  if (presenterValidationError) {
+    return res.status(400).json({ error: presenterValidationError });
+  }
+
+  try {
+    const generatedRoomId = await generateUniqueRoomId();
+    return res.json({ roomId: generatedRoomId });
+  } catch (error) {
+    console.error('Failed to generate secure room code:', error);
+    return res.status(500).json({ error: 'Room ID could not be generated' });
+  }
 });
 
 app.post('/api/admin/login', async (req, res) => {
@@ -881,9 +911,9 @@ app.post('/api/admin/maintenance/delete-table', requireAdminAuth, requireAdminAc
 const rooms = new Map();
 const participants = new Map(); // roomId -> Map of socketId -> studentDetails
 const chatMessages = new Map(); // roomId -> Array of chat messages
-const MESH_WARNING_MEDIUM = Number(process.env.MESH_WARNING_MEDIUM || 25);
-const MESH_WARNING_LARGE = Number(process.env.MESH_WARNING_LARGE || 50);
-const MESH_WARNING_XLARGE = Number(process.env.MESH_WARNING_XLARGE || 80);
+const MESH_WARNING_MEDIUM = Number(process.env.MESH_WARNING_MEDIUM || 10);
+const MESH_WARNING_LARGE = Number(process.env.MESH_WARNING_LARGE || 18);
+const MESH_WARNING_XLARGE = Number(process.env.MESH_WARNING_XLARGE || 28);
 const PERFORMANCE_LOG_INTERVAL_MS = Number(process.env.PERFORMANCE_LOG_INTERVAL_MS || 10000);
 const performanceLogTracker = new Map();
 
@@ -938,24 +968,44 @@ function getScaleProfile(participantCount) {
   if (participantCount >= MESH_WARNING_XLARGE) {
     return {
       level: 'xlarge',
-      recommendation: 'Very large class: use low frame rate slide mode and keep only one active speaker on mic.'
+      recommendation: 'Very large class: hard presentation mode is active. Keep one speaker on mic and avoid motion-heavy content.',
+      presentationMode: true,
+      hardMode: true,
+      allowTypingIndicators: false,
+      allowStudentProjection: false,
+      allowSystemAudio: false
     };
   }
   if (participantCount >= MESH_WARNING_LARGE) {
     return {
       level: 'large',
-      recommendation: 'Large class: prioritize slides over motion and limit student projection turns.'
+      recommendation: 'Large class: presentation mode is active. Prioritize slides, mic narration, and host-led sharing only.',
+      presentationMode: true,
+      hardMode: false,
+      allowTypingIndicators: false,
+      allowStudentProjection: false,
+      allowSystemAudio: false
     };
   }
   if (participantCount >= MESH_WARNING_MEDIUM) {
     return {
       level: 'medium',
-      recommendation: 'Medium class: adaptive quality mode is active for stable delivery.'
+      recommendation: 'Medium class: adaptive quality mode is active for stable delivery.',
+      presentationMode: true,
+      hardMode: false,
+      allowTypingIndicators: true,
+      allowStudentProjection: true,
+      allowSystemAudio: true
     };
   }
   return {
     level: 'small',
-    recommendation: 'Normal class size: full quality mode is active.'
+    recommendation: 'Normal class size: full quality mode is active.',
+    presentationMode: false,
+    hardMode: false,
+    allowTypingIndicators: true,
+    allowStudentProjection: true,
+    allowSystemAudio: true
   };
 }
 
@@ -971,6 +1021,11 @@ function emitScaleProfile(roomId) {
     participantCount,
     level: profile.level,
     recommendation: profile.recommendation,
+    presentationMode: profile.presentationMode,
+    hardMode: profile.hardMode,
+    allowTypingIndicators: profile.allowTypingIndicators,
+    allowStudentProjection: profile.allowStudentProjection,
+    allowSystemAudio: profile.allowSystemAudio,
     thresholds: {
       medium: MESH_WARNING_MEDIUM,
       large: MESH_WARNING_LARGE,
@@ -1007,13 +1062,7 @@ io.on('connection', (socket) => {
       department: String(presenterDetails?.department || presenterDetails?.dept || '').trim(),
       room: String(presenterDetails?.room || '').trim()
     };
-    const resolvedRoomId = sanitizeRoomId(roomId || generateRoomIdFromDetails(normalizedPresenterDetails));
     const presenterValidationError = validatePresenterDetails(normalizedPresenterDetails);
-
-    if (!resolvedRoomId) {
-      socket.emit('room-error', 'Room ID could not be generated');
-      return;
-    }
 
     if (presenterValidationError) {
       console.error(`Invalid room creation attempt by ${socket.id}`);
@@ -1022,6 +1071,13 @@ io.on('connection', (socket) => {
     }
 
     try {
+      let resolvedRoomId = sanitizeRoomId(roomId || '');
+      const existingSession = resolvedRoomId ? await database.getSession(resolvedRoomId) : null;
+
+      if (!resolvedRoomId || rooms.has(resolvedRoomId) || existingSession) {
+        resolvedRoomId = await generateUniqueRoomId();
+      }
+
       const connectionAddress = getSocketConnectionAddress(socket);
       // Check if presenter already exists in database
       let presenterId;
@@ -1224,6 +1280,18 @@ io.on('connection', (socket) => {
   socket.on('request-student-projection', (data) => {
     const { roomId } = data;
     const room = rooms.get(roomId);
+    const profile = room ? getScaleProfile(room.students.size + 1) : null;
+    const isPresenter = room?.presenterId === socket.id;
+
+    if (roomId && room && !isPresenter && !profile?.allowStudentProjection) {
+      socket.emit('student-projection-disabled', {
+        roomId,
+        level: profile.level,
+        message: 'Student screen sharing is disabled in presentation mode for larger classes.'
+      });
+      return;
+    }
+
     if (roomId && room && (!room.activeSharerSocketId || room.activeSharerSocketId === socket.id)) {
       // Broadcast to everyone in the room except the sender
       socket.to(roomId).emit('student-projection-requested', { studentId: socket.id });
@@ -1376,6 +1444,20 @@ io.on('connection', (socket) => {
   socket.on('student-screen-share-started', (data) => {
     const { roomId } = data;
     const room = rooms.get(roomId);
+    const profile = room ? getScaleProfile(room.students.size + 1) : null;
+
+    if (room && !profile?.allowStudentProjection) {
+      socket.emit('student-projection-disabled', {
+        roomId,
+        level: profile.level,
+        message: 'Student screen sharing is disabled in presentation mode for larger classes.'
+      });
+      socket.emit('screen-share-denied', {
+        activeSharerName: 'presentation mode',
+        activeSharerRole: 'system policy'
+      });
+      return;
+    }
 
     if (!room || (room.activeSharerSocketId && room.activeSharerSocketId !== socket.id)) {
       socket.emit('screen-share-denied', {
@@ -1461,6 +1543,11 @@ io.on('connection', (socket) => {
     }
     
     if (!roomId) return;
+
+    const room = rooms.get(roomId);
+    if (room && !getScaleProfile(room.students.size + 1).allowTypingIndicators) {
+      return;
+    }
     
     // Broadcast to room (except sender)
     socket.to(roomId).emit('typing', { sender: data.sender });
@@ -1478,6 +1565,11 @@ io.on('connection', (socket) => {
     }
     
     if (!roomId) return;
+
+    const room = rooms.get(roomId);
+    if (room && !getScaleProfile(room.students.size + 1).allowTypingIndicators) {
+      return;
+    }
     
     // Broadcast to room (except sender)
     socket.to(roomId).emit('stop-typing', { sender: data.sender });
@@ -1586,4 +1678,3 @@ process.on('SIGINT', () => {
 });
 
 startServer();
-

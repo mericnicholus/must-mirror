@@ -5,6 +5,15 @@ class ScreenMirroringApp {
         this.isMuted = true;
         this.isSharing = false;
         this.unreadMessages = 0;
+        this.scaleState = {
+            level: 'small',
+            participantCount: 1,
+            presentationMode: false,
+            hardMode: false,
+            allowTypingIndicators: true,
+            allowStudentProjection: true,
+            allowSystemAudio: true
+        };
         this.clientConfigPromise = null;
         this.sessionStartedAt = null;
         this.sessionTimerInterval = null;
@@ -126,10 +135,10 @@ class ScreenMirroringApp {
         actionButton.className = 'btn btn-danger';
 
         if (this.currentRole === 'presenter') {
-            actionButton.textContent = 'End Session';
+            actionButton.textContent = 'End';
             actionButton.onclick = endSession;
         } else if (this.currentRole === 'student') {
-            actionButton.textContent = 'Leave Session';
+            actionButton.textContent = 'Leave';
             actionButton.onclick = leaveSession;
         } else {
             return;
@@ -158,13 +167,37 @@ class ScreenMirroringApp {
 
         return this.clientConfigPromise;
     }
+
+    updateScaleState(scaleData) {
+        this.scaleState = {
+            ...this.scaleState,
+            ...(scaleData || {})
+        };
+    }
+
+    isStudentProjectionAllowed() {
+        return this.scaleState.allowStudentProjection !== false;
+    }
+
+    areTypingIndicatorsAllowed() {
+        return this.scaleState.allowTypingIndicators !== false;
+    }
+
+    isSystemAudioAllowed() {
+        return this.scaleState.allowSystemAudio !== false;
+    }
 }
 
 const app = new ScreenMirroringApp();
 
 function updateScaleModeBanner(scaleData) {
     const banner = document.getElementById('scaleModeBanner');
-    if (!banner || !scaleData) return;
+    if (!scaleData) return;
+    app.updateScaleState(scaleData);
+    if (!banner) {
+        syncActionButtons();
+        return;
+    }
 
     const level = scaleData.level || 'small';
     const count = scaleData.participantCount || 1;
@@ -174,12 +207,14 @@ function updateScaleModeBanner(scaleData) {
         banner.style.display = 'none';
         banner.className = 'scale-mode-banner';
         banner.textContent = '';
+        syncActionButtons();
         return;
     }
 
     banner.className = `scale-mode-banner level-${level}`;
     banner.textContent = `Class size: ${count} participants. ${recommendation}`;
     banner.style.display = 'block';
+    syncActionButtons();
 }
 
 const ACTION_ICONS = {
@@ -236,6 +271,14 @@ function syncActionButtons() {
 
     if (shareBtn) {
         shareBtn.classList.toggle('active', app.isSharing);
+
+        if (app.currentRole === 'student' && !app.isStudentProjectionAllowed() && !app.isSharing) {
+            shareBtn.disabled = true;
+            shareBtn.title = 'Student sharing is disabled in presentation mode for larger classes';
+            shareBtn.setAttribute('aria-label', 'Student sharing is disabled in presentation mode for larger classes');
+        } else {
+            shareBtn.disabled = false;
+        }
     }
 }
 
@@ -287,6 +330,12 @@ function toggleMute() {
 }
 
 async function toggleShare() {
+    if (app.currentRole === 'student' && !app.isSharing && !app.isStudentProjectionAllowed()) {
+        alert('Student screen sharing is disabled automatically in presentation mode for larger classes.');
+        syncActionButtons();
+        return;
+    }
+
     if (app.currentRole === 'presenter') {
         if (!app.isSharing) {
             await presenter.startScreenShare();
@@ -348,6 +397,10 @@ function toggleChat() {
 // Typing indicator timeout
 let typingTimeout = null;
 function handleTyping() {
+    if (!app.areTypingIndicatorsAllowed()) {
+        return;
+    }
+
     // Clear existing timeout
     if (typingTimeout) {
         clearTimeout(typingTimeout);

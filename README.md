@@ -1,6 +1,6 @@
-﻿# MUST Mirror
+﻿## MUST Mirror
 
-MUST Mirror is an offline-first classroom presentation and collaboration system built for lecture environments where internet access may be unreliable or completely unavailable. A host can start a class on one laptop, students can join from phones or laptops on the same local network, and the class can share screen content, audio, chat, attendance, and issue reports without depending on a cloud service.
+MUST Mirror is an offline classroom presentation and collaboration system built for lecture environments where internet access may be unreliable or completely unavailable. A host can start a class on one laptop, students can join from phones or laptops on the same local network, and the class can share screen content, audio, chat, attendance, and issue reports without depending on a cloud service.
 
 This README is the main project guide for the codebase. It is written to help you:
 - understand what the system does
@@ -150,34 +150,31 @@ Relevant code:
 
 ## 5. How The Class Code Is Generated
 
-The class code is generated on the server by `generateRoomIdFromDetails()`.
+The class code is generated on the server using a cryptographically secure random generator.
 
 Source:
-- `server.js:221`
+- `server.js`
 
 ### Current generation rule
-The function currently builds the room ID from:
-- the first 3 letters of the department
-- the last word of the host name
-
-Formula:
-`[DEPT_PREFIX]-[NAME_SUFFIX]`
+The server now:
+- uses a restricted alphabet of uppercase letters and digits that avoids confusing characters such as `O`, `0`, `I`, and `1`
+- generates each character with Node.js `crypto.randomInt(...)`
+- groups the code in an `XXXX-XXXX` format for easier classroom sharing
+- checks the generated code against active rooms and saved sessions to avoid collisions
 
 Example:
-- Department: `Software Engineering`
-- Host name: `Mabinda Eric`
-- Generated room code: `SOF-ERIC`
+- Generated room code: `K7QX-4M2P`
 
 Important notes:
-- Non-letter symbols are cleaned out before generation.
-- The room ID is then normalized by `sanitizeRoomId()` so only uppercase letters, numbers, and dashes remain.
-- A custom room ID can still be sanitized if passed in.
+- The room ID is still normalized by `sanitizeRoomId()` so only uppercase letters, numbers, and dashes remain.
+- If a preview code is missing or already exists, the server generates a fresh unique one during room creation.
+- This is more secure than the previous predictable department-name format because the code cannot be guessed from presenter details.
 
 Related code:
-- `server.js:221` - room code generation
-- `server.js:232` - room ID sanitization
-- `server.js:312` - `/api/room-id`
-- `server.js:884` - final resolved room ID during room creation
+- `server.js` - secure room code generation
+- `server.js` - room ID sanitization
+- `server.js` - `/api/room-id`
+- `server.js` - final room ID resolution during room creation
 
 ## 6. Offline-First Design
 
@@ -406,6 +403,9 @@ Supported runtime variables from the codebase include:
 - `PORT` - server port
 - `NODE_ENV` - `production` or `development`
 - `SOCKET_SERVER_URL` - explicit socket server URL returned to clients
+- `DB_PATH` - alternate database file path
+- `DB_PASSPHRASE` - SQLCipher passphrase used to open or migrate the database
+- `DB_CIPHER_COMPATIBILITY` - SQLCipher compatibility mode, default `4`
 - `ADMIN_USERNAME` - admin username override
 - `ADMIN_PASSWORD` - admin password override
 - `ADMIN_SESSION_TTL_MS` - admin token lifetime
@@ -414,11 +414,27 @@ Supported runtime variables from the codebase include:
 - `MESH_WARNING_XLARGE` - extra-large class threshold
 - `PERFORMANCE_LOG_INTERVAL_MS` - performance log throttle interval
 
+### SQLCipher setup
+
+To enable encrypted database mode, start the server with a passphrase:
+
+```powershell
+$env:DB_PASSPHRASE="Choose-A-Strong-Secret"
+npm start
+```
+
+Notes:
+- On first startup with `DB_PASSPHRASE` set, the app attempts to migrate the current plaintext classroom database into a SQLCipher-encrypted file and keeps a timestamped plaintext backup.
+- By default, the encrypted database remains `wireless_screen_sharing.db` in the project folder unless `DB_PATH` is explicitly set.
+- If the database is already encrypted, the same passphrase is required on every startup.
+- `DB_CIPHER_COMPATIBILITY` defaults to `4`, which matches SQLCipher 4 defaults.
+
 Relevant code:
 - `server.js:188`
 - `server.js:236`
 - `server.js:237`
 - `server.js:238`
+- `database.js`
 - `server.js:768`
 - `server.js:769`
 - `server.js:770`

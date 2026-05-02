@@ -40,6 +40,12 @@ class Presenter {
             }
         });
 
+        this.socket.on('student-projection-disabled', (data) => {
+            if (data?.message) {
+                webrtcUtils.addLogMessage('logMessages', data.message, 'warning');
+            }
+        });
+
         this.socket.on('chat-message', (data) => {
             // Use the floating chat system
             if (typeof displayChatMessage === 'function') {
@@ -73,7 +79,9 @@ class Presenter {
 
         this.socket.on('student-joined', (studentId) => {
             webrtcUtils.addLogMessage('logMessages', 'Student joined class', 'info');
-            this.connectToStudent(studentId);
+            if (this.isSharing || this.micStream) {
+                this.connectToStudent(studentId);
+            }
         });
 
         this.socket.on('participants-updated', (list) => this.updateParticipantsUI(list));
@@ -187,11 +195,7 @@ class Presenter {
                 generatedId = payload.roomId;
             }
         } catch (error) {
-            console.warn('Unable to fetch server room id, using local fallback');
-        }
-
-        if (!generatedId) {
-            generatedId = `${details.department.substring(0,3).toUpperCase()}-${details.name.split(' ').pop().toUpperCase()}`;
+            console.warn('Unable to fetch secure room id preview, server will generate one on create');
         }
 
         this.socket.emit('create-room', { roomId: generatedId, presenterDetails: details });
@@ -299,6 +303,9 @@ class Presenter {
             try {
                 this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const track = this.micStream.getAudioTracks()[0];
+                if (this.peerConnections.size === 0 && this.roomId) {
+                    this.socket.emit('request-student-projection', { roomId: this.roomId });
+                }
                 this.peerConnections.forEach(pc => {
                     const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
                     if (sender) sender.replaceTrack(track);
@@ -321,9 +328,12 @@ class Presenter {
 
     async startScreenShare() {
         try {
+            const allowSystemAudio = typeof app?.isSystemAudioAllowed === 'function'
+                ? app.isSystemAudioAllowed()
+                : true;
             this.screenStream = await navigator.mediaDevices.getDisplayMedia({ 
                 video: true, 
-                audio: true 
+                audio: allowSystemAudio
             });
 
             const screenVideoTrack = this.screenStream.getVideoTracks()[0];
@@ -339,6 +349,14 @@ class Presenter {
             this.isSharing = true;
 
             await this.applyShareQualityProfile();
+
+            if (!allowSystemAudio) {
+                webrtcUtils.addLogMessage(
+                    'logMessages',
+                    'Presentation mode is active. System/tab audio capture is disabled to keep large classes stable. Use microphone narration instead.',
+                    'warning'
+                );
+            }
 
             // Get screen/share information for tracking
             const screenTrack = this.screenStream.getVideoTracks()[0];
@@ -432,6 +450,10 @@ class Presenter {
     }
 
     async connectToStudent(studentId) {
+        if (this.peerConnections.has(studentId)) {
+            return;
+        }
+
         const connectionStartTime = Date.now();
         const pc = webrtcUtils.createPeerConnection(); // Use WebRTC configuration
         this.peerConnections.set(studentId, pc);
@@ -579,6 +601,10 @@ class Presenter {
 
     // Start performance monitoring for a connection
     startPerformanceMonitoring(studentId, peerConnection) {
+        if (!this.shouldMonitorPeerPerformance()) {
+            return;
+        }
+
         const stopMonitoring = webrtcUtils.monitorPerformance(peerConnection, (performanceData) => {
             // Log performance data periodically
             this.logPerformanceMetrics(studentId, performanceData);
@@ -717,16 +743,20 @@ class Presenter {
     }
 
     getShareQualityProfile() {
-        if (this.audienceSize >= 80) {
-            return { name: 'xlarge', width: 960, height: 540, frameRate: 6, bitrateKbps: 550 };
+        if (this.audienceSize >= 40) {
+            return { name: 'xlarge', width: 854, height: 480, frameRate: 4, bitrateKbps: 300 };
         }
-        if (this.audienceSize >= 50) {
-            return { name: 'large', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
+        if (this.audienceSize >= 20) {
+            return { name: 'large', width: 960, height: 540, frameRate: 6, bitrateKbps: 450 };
         }
-        if (this.audienceSize >= 25) {
-            return { name: 'medium', width: 1280, height: 720, frameRate: 10, bitrateKbps: 1100 };
+        if (this.audienceSize >= 10) {
+            return { name: 'medium', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
         }
-        return { name: 'small', width: 1280, height: 720, frameRate: 15, bitrateKbps: 1600 };
+        return { name: 'small', width: 1280, height: 720, frameRate: 12, bitrateKbps: 1200 };
+    }
+
+    shouldMonitorPeerPerformance() {
+        return this.audienceSize <= 8;
     }
 
     async applyShareQualityProfile() {

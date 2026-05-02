@@ -39,43 +39,42 @@
                 <div class="selection-card landing-shell">
                     <div class="landing-layout">
                         <section class="landing-copy">
-                            <p class="landing-kicker">WORKS WITHOUT INTERNET</p>
-                            <h2>Share your content with the class</h2>
+                            <p class="landing-kicker">OFFLINE-READY CLASSROOM</p>
+                            <h2>Host or join a class fast</h2>
                             <p class="landing-subtext">
-                                No data? No problem. Share your screen and talk to your students using just your school Wi-Fi, Personal Hotspot or Mobile Router. It's fast, free, and easy.
+                                Create a room, share your screen, and let students join with a room code on school Wi-Fi, hotspot, or LAN.
                             </p>
                             <div class="landing-actions">
                                 <button class="role-btn role-btn-primary" onclick="selectRole('presenter')">
                                     <span class="btn-text">
                                         <strong>Host Class</strong>
-                                        <small>Start as Host and share your screen</small>
+                                        <small>Create a room and start teaching</small>
                                     </span>
                                 </button>
                                 <div class="join-inline">
-                                    <input type="text" id="landingRoomCode" placeholder="Enter room code (e.g. SOF-ERIC)" onkeydown="if(event.key==='Enter') quickJoinFromLanding()">
+                                    <input type="text" id="landingRoomCode" placeholder="Enter room code (e.g. K7QX-4M2P)" onkeydown="if(event.key==='Enter') quickJoinFromLanding()">
                                     <button class="btn btn-secondary" onclick="quickJoinFromLanding()">Join</button>
                                 </div>
-                                <button class="btn btn-secondary landing-help-btn" onclick="openConnectivityHelpModal()">Connection Help</button>
+                                <button class="btn btn-secondary landing-help-btn" onclick="openConnectivityHelpModal()">How to Connect</button>
                             </div>
                             <div class="landing-pills">
-                                <span class="landing-pill">One presenter at a time</span>
-                                <span class="landing-pill">Live host/student chat</span>
-                                <span class="landing-pill">Offline-ready LAN mode</span>
+                                <span class="landing-pill">Join with room code</span>
+                                <span class="landing-pill">Live class chat</span>
                             </div>
                         </section>
                         <aside class="landing-visual">
-                            <h3>Choose your role</h3>
+                            <h3>Choose role</h3>
                             <div class="role-options">
                                 <button class="role-btn role-quick-card" onclick="selectRole('presenter')">
                                     <div class="btn-text">
                                         <strong>Host</strong>
-                                        <small>Create a room and teach</small>
+                                        <small>Create and share</small>
                                     </div>
                                 </button>
                                 <button class="role-btn role-quick-card" onclick="selectRole('student')">
                                     <div class="btn-text">
                                         <strong>Student</strong>
-                                        <small>Open join form and attend</small>
+                                        <small>Join with code</small>
                                     </div>
                                 </button>
                             </div>
@@ -133,7 +132,7 @@
                     <div class="video-container">
                         <div id="waitingMessage" class="waiting-state">
                             <div class="spinner-icon"></div>
-                            <p style="font-weight: 500; font-size: 1.125rem;">Waiting for broadcast to start...</p>
+                            <p style="font-weight: 500; font-size: 1.125rem;">Waiting for presenter to start...</p>
                             <p style="opacity: 0.6; font-size: 0.875rem; margin-top: 8px;">The presenter will begin the session shortly</p>
                         </div>
                         

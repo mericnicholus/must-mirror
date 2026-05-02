@@ -1,8 +1,95 @@
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
+const standardSqlite3 = require('sqlite3').verbose();
+let sqlcipherSqlite3 = null;
 
-// Database file path
-const DB_PATH = path.join(__dirname, 'wireless_screen_sharing.db');
+try {
+    sqlcipherSqlite3 = require('@journeyapps/sqlcipher').verbose();
+} catch (error) {
+    sqlcipherSqlite3 = null;
+}
+
+const DB_PASSPHRASE = String(process.env.DB_PASSPHRASE || '');
+const DB_CIPHER_COMPATIBILITY = Math.max(1, Number(process.env.DB_CIPHER_COMPATIBILITY || 4));
+const ADMIN_ACTION_CODE = String(
+    process.env.ADMIN_ACTION_CODE ||
+    process.env.ADMIN_PASSWORD ||
+    'MustMirror@Admin123'
+);
+const sqlite3 = DB_PASSPHRASE ? (sqlcipherSqlite3 || standardSqlite3) : standardSqlite3;
+const PROJECT_DB_PATH = path.join(__dirname, 'wireless_screen_sharing.db');
+
+const DB_PATH = process.env.DB_PATH
+    ? path.resolve(__dirname, process.env.DB_PATH)
+    : PROJECT_DB_PATH;
+
+function escapeSqlString(value = '') {
+    return String(value).replace(/'/g, "''");
+}
+
+function openDriverDatabase(filePath) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(filePath, (err) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(db);
+            }
+        });
+    });
+}
+
+function closeDriverDatabase(db) {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            resolve();
+            return;
+        }
+
+        db.close((err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+}
+
+function rawRun(db, sql) {
+    return new Promise((resolve, reject) => {
+        db.run(sql, function(err) {
+            if (err) reject(err);
+            else resolve({ id: this.lastID, changes: this.changes });
+        });
+    });
+}
+
+function rawGet(db, sql) {
+    return new Promise((resolve, reject) => {
+        db.get(sql, (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+        });
+    });
+}
+
+function removeSidecarFiles(filePath) {
+    for (const suffix of ['-wal', '-shm']) {
+        const sidecarPath = `${filePath}${suffix}`;
+        if (fs.existsSync(sidecarPath)) {
+            fs.unlinkSync(sidecarPath);
+        }
+    }
+}
+
+function isMatchingConfirmationCode(code = '') {
+    return String(code || '').trim() && String(code || '').trim() === ADMIN_ACTION_CODE;
+}
+
+function ensureParentDirectory(filePath) {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+}
 
 class Database {
     constructor() {
@@ -12,17 +99,143 @@ class Database {
 
     // Initialize database connection and create tables
     async initialize() {
-        return new Promise((resolve, reject) => {
-            this.db = new sqlite3.Database(DB_PATH, (err) => {
-                if (err) {
-                    console.error('Error opening database:', err);
-                    reject(err);
-                } else {
-                    console.log('Connected to SQLite database.');
-                    this.createTables().then(resolve).catch(reject);
+        try {
+            if (DB_PASSPHRASE && !sqlcipherSqlite3) {
+                throw new Error('DB_PASSPHRASE is set but the SQLCipher driver is not installed.');
+            }
+            this.db = await this.openConfiguredDatabase();
+            console.log(`Connected to ${DB_PASSPHRASE ? 'SQLCipher' : 'SQLite'} database.`);
+            await this.createTables();
+        } catch (error) {
+            console.error('Error opening database:', error);
+            throw error;
+        }
+    }
+
+    async openConfiguredDatabase() {
+        ensureParentDirectory(DB_PATH);
+        const dbExists = fs.existsSync(DB_PATH);
+        const migrationSourcePath = DB_PATH !== PROJECT_DB_PATH && fs.existsSync(PROJECT_DB_PATH)
+            ? PROJECT_DB_PATH
+            : DB_PATH;
+
+        if (!dbExists) {
+            if (DB_PASSPHRASE && migrationSourcePath && fs.existsSync(migrationSourcePath) && migrationSourcePath !== DB_PATH) {
+                await this.encryptExistingPlaintextDatabase(migrationSourcePath, DB_PATH);
+                const encryptedDb = await openDriverDatabase(DB_PATH);
+                await this.applySqlCipherKey(encryptedDb, DB_PASSPHRASE);
+                await this.verifyReadableDatabase(encryptedDb);
+                return encryptedDb;
+            }
+
+            const freshDb = await openDriverDatabase(DB_PATH);
+            if (DB_PASSPHRASE) {
+                try {
+                    await this.applySqlCipherKey(freshDb, DB_PASSPHRASE);
+                } catch (error) {
+                    await closeDriverDatabase(freshDb).catch(() => {});
+                    throw error;
                 }
-            });
-        });
+            }
+            return freshDb;
+        }
+
+        if (!DB_PASSPHRASE) {
+            const plainDb = await openDriverDatabase(DB_PATH);
+            try {
+                await this.verifyReadableDatabase(plainDb);
+                return plainDb;
+            } catch (error) {
+                await closeDriverDatabase(plainDb).catch(() => {});
+                throw new Error('Database appears encrypted. Set DB_PASSPHRASE to open it.');
+            }
+        }
+
+        const keyedDb = await openDriverDatabase(DB_PATH);
+        try {
+            await this.applySqlCipherKey(keyedDb, DB_PASSPHRASE);
+            await this.verifyReadableDatabase(keyedDb);
+            return keyedDb;
+        } catch (keyedError) {
+            await closeDriverDatabase(keyedDb).catch(() => {});
+
+            const plainDb = await openDriverDatabase(DB_PATH);
+            try {
+                await this.verifyReadableDatabase(plainDb);
+                await closeDriverDatabase(plainDb);
+                await this.encryptExistingPlaintextDatabase(DB_PATH);
+
+                const encryptedDb = await openDriverDatabase(DB_PATH);
+                await this.applySqlCipherKey(encryptedDb, DB_PASSPHRASE);
+                await this.verifyReadableDatabase(encryptedDb);
+                return encryptedDb;
+            } catch (plainError) {
+                await closeDriverDatabase(plainDb).catch(() => {});
+                const reason = plainError?.message ? ` ${plainError.message}` : '';
+                throw new Error(`Failed to open the database with SQLCipher. The passphrase may be incorrect, the driver may not support encrypted file writes in this environment, or the file may be corrupted.${reason}`);
+            }
+        }
+
+        throw new Error('Database could not be opened.');
+    }
+
+    async applySqlCipherKey(db, passphrase) {
+        if (!passphrase) {
+            return;
+        }
+
+        await rawRun(db, `PRAGMA cipher_compatibility = ${DB_CIPHER_COMPATIBILITY}`);
+        await rawRun(db, `PRAGMA key = '${escapeSqlString(passphrase)}'`);
+    }
+
+    async verifyReadableDatabase(db) {
+        await rawGet(db, 'SELECT COUNT(*) AS table_count FROM sqlite_master');
+    }
+
+    async encryptExistingPlaintextDatabase(sourcePath = DB_PATH, targetPath = DB_PATH) {
+        ensureParentDirectory(targetPath);
+        const tempEncryptedPath = sourcePath === targetPath
+            ? `${targetPath}.sqlcipher.tmp`
+            : `${targetPath}.tmp`;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = `${sourcePath}.plaintext-backup-${timestamp}`;
+
+        if (fs.existsSync(tempEncryptedPath)) {
+            fs.unlinkSync(tempEncryptedPath);
+        }
+        removeSidecarFiles(tempEncryptedPath);
+
+        const plaintextDb = await openDriverDatabase(sourcePath);
+        try {
+            const attachedPath = escapeSqlString(tempEncryptedPath);
+            const escapedPassphrase = escapeSqlString(DB_PASSPHRASE);
+
+            await rawRun(plaintextDb, `ATTACH DATABASE '${attachedPath}' AS encrypted KEY '${escapedPassphrase}'`);
+            await rawRun(plaintextDb, `PRAGMA encrypted.cipher_compatibility = ${DB_CIPHER_COMPATIBILITY}`);
+            await rawRun(plaintextDb, `SELECT sqlcipher_export('encrypted')`);
+            await rawRun(plaintextDb, 'DETACH DATABASE encrypted');
+        } catch (error) {
+            if (fs.existsSync(tempEncryptedPath)) {
+                fs.unlinkSync(tempEncryptedPath);
+            }
+            removeSidecarFiles(tempEncryptedPath);
+            throw new Error(`SQLCipher migration failed: ${error.message}`);
+        } finally {
+            await closeDriverDatabase(plaintextDb);
+        }
+
+        if (sourcePath === targetPath) {
+            removeSidecarFiles(sourcePath);
+            fs.renameSync(sourcePath, backupPath);
+            fs.renameSync(tempEncryptedPath, targetPath);
+        } else {
+            fs.copyFileSync(sourcePath, backupPath);
+            if (fs.existsSync(targetPath)) {
+                fs.unlinkSync(targetPath);
+            }
+            fs.renameSync(tempEncryptedPath, targetPath);
+        }
+        console.log(`Existing plaintext database encrypted. Backup saved to ${backupPath}`);
     }
 
     async createTables() {
@@ -145,7 +358,7 @@ class Database {
             const tableInfo = await this.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'content_shares'");
             if (tableInfo.length > 0) {
                 console.log('Removing legacy content_shares table...');
-                await this.run('DROP TABLE IF EXISTS content_shares', [], { allowDangerous: true });
+                await this.run('DROP TABLE IF EXISTS content_shares', [], { allowDangerous: true, internalSystemOperation: true });
                 await this.run("DELETE FROM sqlite_sequence WHERE name = 'content_shares'");
             }
         } catch (error) {
@@ -359,7 +572,7 @@ class Database {
             await this.run(`ALTER TABLE ${tableName} RENAME TO ${tableName}__old`);
             await this.run(createSql);
             await this.run(insertSql);
-            await this.run(`DROP TABLE ${tableName}__old`, [], { allowDangerous: true });
+            await this.run(`DROP TABLE ${tableName}__old`, [], { allowDangerous: true, internalSystemOperation: true });
             await this.run('COMMIT');
         } catch (error) {
             try {
@@ -386,13 +599,28 @@ class Database {
     isDangerousSql(sql) {
         if (!sql) return false;
         const normalized = String(sql).toUpperCase().replace(/\s+/g, ' ').trim();
-        return normalized.includes('DROP TABLE') || normalized.includes('DETACH DATABASE') || normalized.includes('PRAGMA WRITABLE_SCHEMA');
+        return (
+            normalized.includes('DROP TABLE') ||
+            normalized.includes('DROP INDEX') ||
+            normalized.includes('DROP VIEW') ||
+            normalized.includes('DROP TRIGGER') ||
+            normalized.includes('ALTER TABLE') ||
+            normalized.includes('DETACH DATABASE') ||
+            normalized.includes('PRAGMA WRITABLE_SCHEMA')
+        );
+    }
+
+    canRunDangerousSql(options = {}) {
+        return Boolean(
+            options.internalSystemOperation ||
+            (options.allowDangerous && isMatchingConfirmationCode(options.confirmationCode))
+        );
     }
 
     run(sql, params = [], options = {}) {
         return new Promise((resolve, reject) => {
-            if (this.isDangerousSql(sql) && !options.allowDangerous) {
-                reject(new Error('Dangerous SQL blocked'));
+            if (this.isDangerousSql(sql) && !this.canRunDangerousSql(options)) {
+                reject(new Error('Dangerous SQL blocked. A valid admin confirmation code is required for schema or table changes.'));
                 return;
             }
             this.db.run(sql, params, function(err) {
