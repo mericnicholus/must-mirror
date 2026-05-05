@@ -3,8 +3,49 @@
 // Configuration
 const FOCUS_DETECTION_ENABLED = true; // Set to false to disable focus detection
 
+function normalizeEmailInput(value = '') {
+    return String(value || '').trim().toLowerCase();
+}
+
+function isValidEmailInput(value = '') {
+    const email = normalizeEmailInput(value);
+    if (!email || email.length > 254 || email.endsWith('.')) return false;
+
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+
+    const [localPart, domain] = parts;
+    if (!localPart || !domain) return false;
+    if (localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')) return false;
+    if (domain.startsWith('.') || domain.endsWith('.') || domain.includes('..')) return false;
+    if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)) return false;
+    if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(domain)) return false;
+
+    return true;
+}
+
+function isValidStudentEmailInput(value = '') {
+    const email = normalizeEmailInput(value);
+    if (!isValidEmailInput(email)) return false;
+
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+
+    return parts[1] === 'std.must.ac.ug';
+}
+
+function isValidFullName(value = '') {
+    const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+    return /^[A-Za-z][A-Za-z.'-]*(?: [A-Za-z][A-Za-z.'-]*)+$/.test(normalized);
+}
+
+function isValidRoomCode(value = '') {
+    return /^[A-Z0-9]{3,6}(?:-[A-Z0-9]{3,6}){1,3}$/.test(String(value || '').trim().toUpperCase());
+}
+
 class Student {
     constructor() {
+        this.storageKey = 'mustMirrorStudentCredentials';
         this.socket = null;
         this.roomId = null;
         this.socketId = null;
@@ -24,6 +65,70 @@ class Student {
         this.logoutTimeout = null;
         this.performanceMonitors = new Map(); // Track performance monitors
         this.connectionStartTime = null;
+        this.initializeStoredCredentials();
+    }
+
+    getStoredCredentials() {
+        try {
+            const raw = window.localStorage.getItem(this.storageKey);
+            return raw ? JSON.parse(raw) : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    saveCredentials(partialDetails = {}) {
+        const current = this.getStoredCredentials();
+        const next = {
+            name: partialDetails.name ?? document.getElementById('studentName')?.value?.trim() ?? current.name ?? '',
+            email: partialDetails.email ?? document.getElementById('studentEmail')?.value?.trim() ?? current.email ?? '',
+            roomId: partialDetails.roomId ?? document.getElementById('joinRoomId')?.value?.trim() ?? current.roomId ?? ''
+        };
+
+        try {
+            window.localStorage.setItem(this.storageKey, JSON.stringify(next));
+        } catch (error) {
+            console.warn('Unable to save student credentials locally', error);
+        }
+    }
+
+    restoreCredentials() {
+        const details = this.getStoredCredentials();
+        const nameField = document.getElementById('studentName');
+        const emailField = document.getElementById('studentEmail');
+        const roomField = document.getElementById('joinRoomId');
+
+        if (nameField && details.name && !nameField.value.trim()) {
+            nameField.value = details.name;
+        }
+
+        if (emailField && details.email && !emailField.value.trim()) {
+            emailField.value = details.email;
+        }
+
+        if (roomField && details.roomId && !roomField.value.trim()) {
+            roomField.value = details.roomId;
+        }
+    }
+
+    initializeStoredCredentials() {
+        const bindRestore = () => {
+            this.restoreCredentials();
+            ['studentName', 'studentEmail', 'joinRoomId'].forEach((fieldId) => {
+                const field = document.getElementById(fieldId);
+                if (!field || field.dataset.persistBound === 'true') return;
+
+                field.dataset.persistBound = 'true';
+                field.addEventListener('input', () => this.saveCredentials());
+                field.addEventListener('change', () => this.saveCredentials());
+            });
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bindRestore, { once: true });
+        } else {
+            bindRestore();
+        }
     }
 
     async initializeSocket() {
@@ -65,6 +170,10 @@ class Student {
         this.socket.on('room-joined', (data) => {
             this.roomId = data.roomId;
             this.studentName = data.studentName;
+            this.saveCredentials({
+                name: data.studentName,
+                roomId: data.roomId
+            });
             app.updateSessionUI(this.roomId, 'Joined');
             this.displayPresenterDetails(data.presenterDetails);
             
@@ -190,18 +299,21 @@ class Student {
         console.log('Socket ID:', this.socket?.id);
         
         const details = {
-            name: document.getElementById('studentName').value.trim(),
-            email: document.getElementById('studentEmail').value.trim(),
-            roomId: document.getElementById('joinRoomId').value.trim()
+            name: document.getElementById('studentName').value.trim().replace(/\s+/g, ' '),
+            email: normalizeEmailInput(document.getElementById('studentEmail').value),
+            roomId: document.getElementById('joinRoomId').value.trim().toUpperCase()
         };
 
         console.log('Join details:', details);
 
         if (!details.name) return alert('Student name is required.');
+        if (!isValidFullName(details.name)) return alert('Enter your full name using letters only.');
         if (!details.email) return alert('Student email is required.');
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailPattern.test(details.email)) return alert('Enter a valid student email.');
+        if (!isValidStudentEmailInput(details.email)) return alert('Enter a valid student email ending with @std.must.ac.ug.');
         if (!details.roomId) return alert('Room ID is required.');
+        if (!isValidRoomCode(details.roomId)) return alert('Enter a valid room ID.');
+
+        this.saveCredentials(details);
 
         if (!this.socket || !this.socket.connected) {
             console.error('Socket not connected - cannot join room');
@@ -246,7 +358,15 @@ class Student {
             const allowSystemAudio = typeof app?.isSystemAudioAllowed === 'function'
                 ? app.isSystemAudioAllowed()
                 : true;
-            this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: allowSystemAudio });
+            const requestedProfile = this.getShareQualityProfile();
+            this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    width: { ideal: requestedProfile.width },
+                    height: { ideal: requestedProfile.height },
+                    frameRate: { ideal: requestedProfile.frameRate, max: requestedProfile.frameRate }
+                },
+                audio: allowSystemAudio
+            });
             const screenVideoTrack = this.screenStream.getVideoTracks()[0];
             if (screenVideoTrack) {
                 screenVideoTrack.contentHint = 'detail';
@@ -718,15 +838,15 @@ class Student {
 
     getShareQualityProfile() {
         if (this.audienceSize >= 40) {
-            return { name: 'xlarge', width: 854, height: 480, frameRate: 4, bitrateKbps: 300 };
+            return { name: 'xlarge', width: 1024, height: 576, frameRate: 5, bitrateKbps: 500 };
         }
         if (this.audienceSize >= 20) {
-            return { name: 'large', width: 960, height: 540, frameRate: 6, bitrateKbps: 450 };
+            return { name: 'large', width: 1280, height: 720, frameRate: 6, bitrateKbps: 850 };
         }
         if (this.audienceSize >= 10) {
-            return { name: 'medium', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
+            return { name: 'medium', width: 1600, height: 900, frameRate: 8, bitrateKbps: 1400 };
         }
-        return { name: 'small', width: 1280, height: 720, frameRate: 12, bitrateKbps: 1200 };
+        return { name: 'small', width: 1920, height: 1080, frameRate: 12, bitrateKbps: 2600 };
     }
 
     shouldMonitorPeerPerformance() {
@@ -852,6 +972,10 @@ class Student {
     }
 
     leaveSession() {
+        this.saveCredentials({
+            name: this.studentName || document.getElementById('studentName')?.value?.trim() || '',
+            roomId: this.roomId || document.getElementById('joinRoomId')?.value?.trim() || ''
+        });
         if (this.socket) {
             this.socket.disconnect();
         }
@@ -1081,6 +1205,10 @@ class Student {
 
     forceLogout() {
         console.log('Force logging out student due to inactivity');
+        this.saveCredentials({
+            name: this.studentName || document.getElementById('studentName')?.value?.trim() || '',
+            roomId: this.roomId || document.getElementById('joinRoomId')?.value?.trim() || ''
+        });
         this.hideWarning();
         this.cleanup();
         

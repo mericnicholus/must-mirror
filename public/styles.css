@@ -102,6 +102,37 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.session-badge-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.session-badge-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.session-badge-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.session-divider {
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.45);
+    flex-shrink: 0;
+}
+
 .status-dot {
     width: 8px;
     height: 8px;
@@ -794,6 +825,16 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     background: radial-gradient(circle at center, rgba(30, 41, 59, 0.4), #000 72%);
 }
 
+.video-chrome {
+    position: absolute;
+    inset: auto 0 0;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    padding: 0 clamp(12px, 2vw, 24px) clamp(14px, 2vw, 24px);
+    z-index: 30;
+}
+
 #mainVideo {
     width: 100%;
     height: 100%;
@@ -858,19 +899,21 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
 
 /* --- ACTION BAR --- */
 .action-bar {
-    position: absolute;
-    bottom: 32px;
-    left: 50%;
-    transform: translateX(-50%);
+    position: relative;
     background: rgba(15, 23, 42, 0.85); /* Dark semi-transparent */
     backdrop-filter: blur(12px);
-    padding: 8px;
-    border-radius: 20px;
+    padding: 10px;
+    border-radius: 22px;
     display: none; /* Changed from display: flex to none by default */
     gap: 8px;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
     z-index: 100;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    width: min(100%, max-content);
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    pointer-events: auto;
 }
 
 .btn {
@@ -1043,8 +1086,18 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     .brand-tagline { display: none; }
     
     .session-badge {
-        padding: 4px 10px;
+        padding: 6px 10px;
+        gap: 10px;
         font-size: 0.75rem;
+        max-width: min(52vw, 220px);
+    }
+
+    .session-badge-label {
+        font-size: 0.58rem;
+    }
+
+    .session-badge-meta {
+        gap: 6px;
     }
 
     .header-actions .btn {
@@ -1130,14 +1183,9 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     }
 
     .action-bar {
-        position: fixed;
-        bottom: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: calc(100% - 32px);
-        justify-content: center;
-        flex-wrap: wrap;
-        z-index: 1100;
+        width: min(100%, 340px);
+        padding: 8px;
+        gap: 6px;
     }
 
     .btn {
@@ -1149,13 +1197,14 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     .video-column {
         min-height: 52vh;
         height: auto;
-        overflow: hidden;
+        overflow: visible;
         border-radius: 20px;
     }
 
     .video-container {
-        min-height: 52vh;
+        min-height: clamp(340px, 52vh, 620px);
         height: 100%;
+        border-radius: 20px;
     }
 
     .sidebar-column {
@@ -1194,6 +1243,24 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
     .feedback-modal-card {
         width: calc(100% - 24px);
         border-radius: 18px;
+    }
+
+    .attendance-modal-card {
+        width: calc(100% - 20px);
+        border-radius: 18px;
+    }
+
+    .attendance-modal-content {
+        padding: 14px;
+    }
+
+    .attendance-modal-footer {
+        padding: 14px;
+        flex-wrap: wrap;
+    }
+
+    .attendance-modal-footer .btn {
+        flex: 1 1 160px;
     }
 
     .info-overlay {
@@ -1303,13 +1370,56 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
         font-size: 0.72rem;
     }
 
+    .header-content {
+        gap: 8px;
+    }
+
+    .brand {
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .session-badge {
+        max-width: 45vw;
+        padding: 6px 8px;
+        gap: 8px;
+    }
+
+    .session-badge-copy {
+        overflow: hidden;
+    }
+
+    .session-badge-meta {
+        font-size: 0.68rem;
+    }
+
     .dashboard-layout {
         padding: 10px;
+        gap: 10px;
     }
 
     .video-column,
     .video-container {
-        min-height: 46vh;
+        min-height: clamp(300px, 46vh, 520px);
+    }
+
+    .video-chrome {
+        padding: 0 10px 10px;
+    }
+
+    .action-bar {
+        width: 100%;
+        padding: 8px;
+        border-radius: 18px;
+    }
+
+    .icon-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .icon-btn .tooltip {
+        display: none;
     }
 
     .sidebar-column {
@@ -1513,6 +1623,89 @@ h1, h2, h3, h4, .section-header h3, .chat-header h4 {
 .feedback-modal-footer .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+.attendance-modal-card {
+    background: var(--card-bg);
+    border-radius: 24px;
+    width: min(96vw, 980px);
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    animation: modalSlideIn 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.attendance-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.attendance-modal-header h3 {
+    margin: 0 0 6px;
+    color: var(--text);
+    font-size: 1.2rem;
+}
+
+.attendance-modal-header p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+}
+
+.attendance-modal-content {
+    padding: 18px 22px;
+    overflow: auto;
+}
+
+.attendance-summary-wrap {
+    overflow: auto;
+    border: 1px solid rgba(51, 51, 153, 0.12);
+    border-radius: 16px;
+}
+
+.attendance-summary-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    background: #fff;
+}
+
+.attendance-summary-table th,
+.attendance-summary-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(51, 51, 153, 0.08);
+    text-align: left;
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+
+.attendance-summary-table th {
+    background: #f7f8ff;
+    color: #35416c;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.attendance-summary-empty {
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.attendance-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 22px 20px;
+    border-top: 1px solid var(--border);
 }
 
 .success-message {

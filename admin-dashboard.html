@@ -6,41 +6,68 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>MUST Mirror Admin Dashboard</title>
 <style>
-:root{--p:#333399;--a:#fcb900;--bg:#f4f6fb;--card:#fff;--t:#1d2453;--m:#66708f;--b:#d7ddf2;--ok:#1f9d55;--bad:#cf3d2e}
-*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--t)}
-.header{background:linear-gradient(120deg,var(--p),#4646b9);color:#fff;padding:14px 18px;position:sticky;top:0;z-index:9}
-.row{max-width:1480px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.header .row>div:last-child{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.title{font-weight:800}.container{max-width:1480px;margin:14px auto 22px;padding:0 12px}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
-.card{background:var(--card);border:1px solid var(--b);border-left:4px solid var(--a);border-radius:10px;padding:12px}
-.card h4{font-size:.75rem;color:var(--m);text-transform:uppercase}.num{font-size:1.6rem;font-weight:800;color:var(--p)}
-.sec{background:#fff;border:1px solid var(--b);border-radius:10px;box-shadow:0 6px 16px rgba(20,24,70,.08);margin-bottom:12px;overflow:hidden}
-.sec-h{padding:10px 12px;background:#fafbff;border-bottom:1px solid #e7ebfb;font-weight:700;color:#24306e;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.sec-b{padding:10px 12px}
+.header{background:
+linear-gradient(135deg,rgba(51,51,153,.98),rgba(39,54,128,.96)),
+radial-gradient(circle at top right,rgba(252,185,0,.2),transparent 35%);
+color:#fff;padding:16px 18px;position:sticky;top:0;z-index:9;box-shadow:0 16px 36px rgba(19,29,78,.2)}
+:root{--p:#333399;--a:#fcb900;--bg:#eef2fb;--card:#fff;--t:#1d2453;--m:#66708f;--b:#d7ddf2;--ok:#1f9d55;--bad:#cf3d2e;--soft:#f7f9ff}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:
+radial-gradient(circle at top left,rgba(252,185,0,.12),transparent 22%),
+linear-gradient(180deg,#f7f9ff 0%,var(--bg) 100%);color:var(--t)}
+.row{max-width:1480px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.header-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.title{font-weight:800;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.title small{font-weight:600;font-size:.78rem;color:rgba(255,255,255,.8)}
+.container{max-width:1480px;margin:16px auto 24px;padding:0 12px}
+.hero{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.6fr);gap:12px;margin-bottom:14px}
+.hero-panel{background:linear-gradient(135deg,#ffffff 0%,#f7f9ff 100%);border:1px solid var(--b);border-radius:18px;padding:18px;box-shadow:0 18px 40px rgba(20,24,70,.08)}
+.hero-panel h2{font-size:1.35rem;color:#1f2a66;margin-bottom:8px}
+.hero-panel p{color:#5d688b;font-size:.93rem;max-width:68ch;line-height:1.55}
+.hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.hero-pill{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border-radius:999px;background:#fff;border:1px solid #dde4f7;font-size:.78rem;font-weight:700;color:#31407f}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.card{background:linear-gradient(180deg,#fff 0%,#fbfcff 100%);border:1px solid var(--b);border-radius:16px;padding:14px;box-shadow:0 14px 28px rgba(20,24,70,.06);position:relative;overflow:hidden}
+.card::after{content:'';position:absolute;inset:auto -18px -22px auto;width:84px;height:84px;border-radius:50%;background:rgba(51,51,153,.06)}
+.card h4{font-size:.73rem;color:var(--m);text-transform:uppercase;letter-spacing:.06em}.num{font-size:1.8rem;font-weight:800;color:var(--p);margin-top:6px}.subnum{margin-top:4px;font-size:.8rem;color:#617094}
+.sec{background:#fff;border:1px solid var(--b);border-radius:16px;box-shadow:0 12px 28px rgba(20,24,70,.08);margin-bottom:14px;overflow:hidden}
+.sec-h{padding:13px 14px;background:linear-gradient(180deg,#fbfcff 0%,#f5f8ff 100%);border-bottom:1px solid #e7ebfb;font-weight:700;color:#24306e;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.sec-b{padding:12px 14px}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:flex-end}
 .fg{display:flex;flex-direction:column;gap:3px;min-width:160px}.fg label{font-size:.75rem;color:#556089;font-weight:600}
-input,select{height:34px;border:1px solid #cfd7f0;border-radius:8px;padding:0 10px;font-size:.84rem}
-.btn{height:34px;border:none;border-radius:8px;padding:0 11px;font-weight:700;font-size:.8rem;cursor:pointer}
-.btn-p{background:var(--p);color:#fff}.btn-s{background:#e9edf9;color:#23306a;border:1px solid #d0d8f1}
+input,select{height:38px;border:1px solid #cfd7f0;border-radius:10px;padding:0 12px;font-size:.84rem;background:#fff}
+.btn{height:38px;border:none;border-radius:10px;padding:0 14px;font-weight:700;font-size:.8rem;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease;display:inline-flex;align-items:center;justify-content:center;gap:8px;line-height:1;text-decoration:none;white-space:nowrap}
+.btn:hover{transform:translateY(-1px);box-shadow:0 10px 20px rgba(20,24,70,.1)}
+.btn-p{background:linear-gradient(135deg,var(--p),#4848c4);color:#fff}.btn-s{background:#eef2ff;color:#23306a;border:1px solid #d0d8f1}
+.header-actions .btn{min-width:112px}
+.header-actions .btn-s{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.header-actions .btn-s:hover{background:rgba(255,255,255,.2)}
+.header-actions .btn-p{box-shadow:0 10px 22px rgba(12,18,54,.22)}
 .wrap{overflow:auto;border:1px solid #e4e9f7;border-radius:9px}table{width:100%;border-collapse:collapse;min-width:860px}
-th,td{padding:8px 9px;border-bottom:1px solid #edf1fb;text-align:left;white-space:nowrap;font-size:.81rem}th{background:#f7f9ff;color:#47548a}
+th,td{padding:10px 11px;border-bottom:1px solid #edf1fb;text-align:left;white-space:nowrap;font-size:.81rem;vertical-align:middle}th{background:#f7f9ff;color:#47548a}
 .empty{padding:20px;text-align:center;color:#6a7398}
 .pill{display:inline-flex;border-radius:999px;padding:2px 8px;font-size:.72rem;font-weight:700}
 .active{background:#def7e8;color:#146c43}.ended{background:#eef1f7;color:#475467}.presenter{background:#e8e9fb;color:#2d3694}.student{background:#fff5d1;color:#7a5500}
+.live-count{display:flex;flex-direction:column;gap:2px}.live-count strong{color:#1f2a66;font-size:.95rem}.live-count span{color:#69769c;font-size:.74rem}
 .good{color:var(--ok);font-weight:700}.warn{color:#b7791f;font-weight:700}.bad{color:var(--bad);font-weight:700}
-.note{font-size:.78rem;color:#556089;background:#f8faff;border:1px solid #e4e9f8;border-radius:8px;padding:7px 9px;margin-bottom:8px}
+.note{font-size:.78rem;color:#556089;background:#f8faff;border:1px solid #e4e9f8;border-radius:10px;padding:9px 10px;margin-bottom:10px}
+.maintenance-layout{display:grid;gap:12px}
+.maintenance-row{border:1px solid #e1e7f7;border-radius:14px;background:linear-gradient(180deg,#fff 0%,#fbfcff 100%);padding:14px}
+.maintenance-row h4{font-size:.9rem;color:#24306e;margin-bottom:6px}
+.maintenance-row p{font-size:.8rem;color:#5f6b8d;line-height:1.5;margin-bottom:12px}
+.maintenance-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.maintenance-actions .btn{min-width:170px}
 .pag{display:none;justify-content:flex-end;gap:8px;align-items:center;margin-top:8px;font-size:.82rem;color:#556089}
 .msg{margin-bottom:8px;padding:9px 10px;border-radius:8px;font-size:.85rem}.ok{background:#e6f7ec;color:#14532d;border:1px solid #a7e4bf}.err{background:#fdecec;color:#7f1d1d;border:1px solid #f5b7b7}
-@media(max-width:960px){.stats{grid-template-columns:1fr 1fr}}
+@media(max-width:1120px){.hero{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){
   .header{padding:12px 14px}
   .title{font-size:1rem;line-height:1.35}
   .container{padding:0 10px;margin:10px auto 18px}
+  .hero-panel{padding:14px}
   .sec-h,.sec-b{padding:10px}
   .header .row{align-items:flex-start}
-  .header .row>div:last-child{width:100%}
-  .header .row>div:last-child .btn{flex:1 1 140px;justify-content:center}
+  .header-actions{width:100%;justify-content:stretch}
+  .header-actions .btn{flex:1 1 140px;justify-content:center}
+  .maintenance-actions .btn{flex:1 1 180px}
   table{min-width:720px}
 }
 @media(max-width:620px){
@@ -51,7 +78,7 @@ th,td{padding:8px 9px;border-bottom:1px solid #edf1fb;text-align:left;white-spac
 </style>
 </head>
 <body>
-<header class="header"><div class="row"><div class="title">MUST Mirror Admin Dashboard <small id="lastRef"></small></div><div><button class="btn btn-s" onclick="refreshAll(true)">Refresh</button> <button id="adminLogoutBtn" class="btn btn-s" style="display:none" onclick="logoutAdmin()">Logout</button> <a class="btn btn-p" href="/index.html" style="text-decoration:none;display:inline-flex;align-items:center">Back To App</a></div></div></header>
+<header class="header"><div class="row"><div class="title">MUST Mirror Admin Dashboard <small id="lastRef"></small></div><div class="header-actions"><button class="btn btn-s" onclick="refreshAll(true)">Refresh</button><button id="adminLogoutBtn" class="btn btn-s" style="display:none" onclick="logoutAdmin()">Logout</button><a class="btn btn-p" href="/index.html">Back To App</a></div></div></header>
 <div class="container">
 <div id="msg"></div>
 <div id="adminLoginModal" style="display:none;position:fixed;inset:0;background:rgba(12,16,40,.5);z-index:30;align-items:center;justify-content:center;padding:16px">
@@ -64,17 +91,17 @@ th,td{padding:8px 9px;border-bottom:1px solid #edf1fb;text-align:left;white-spac
 </div>
 </div>
 <div class="stats">
-<div class="card"><h4>Active Sessions</h4><div class="num" id="sActive">0</div></div>
-<div class="card"><h4>Connected Clients</h4><div class="num" id="sClients">0</div></div>
-<div class="card"><h4>Total Users</h4><div class="num" id="sUsers">0</div></div>
-<div class="card"><h4>Total Attendance</h4><div class="num" id="sAttend">0</div></div>
+<div class="card"><h4>Live Sessions</h4><div class="num" id="sActive">0</div><div class="subnum">Rooms currently hosted</div></div>
+<div class="card"><h4>Connected Clients</h4><div class="num" id="sClients">0</div><div class="subnum">Socket connections right now</div></div>
+<div class="card"><h4>Total Users</h4><div class="num" id="sUsers">0</div><div class="subnum">Registered people seen by the system</div></div>
+<div class="card"><h4>Total Attendance</h4><div class="num" id="sAttend">0</div><div class="subnum">Attendance join records captured</div></div>
 </div>
 <section class="sec"><div class="sec-h">Live Activity <button class="btn btn-s" onclick="exportMountToCsv('liveMount','live_activity')">Export CSV</button></div><div class="sec-b" id="liveMount"><div class="empty">Loading...</div></div></section>
-<section class="sec"><div class="sec-h">Sessions <button class="btn btn-s" onclick="exportMountToCsv('sessionsMount','sessions')">Export CSV</button></div><div class="sec-b"><div class="filters"><div class="fg"><label>Status</label><select id="fSessStatus"><option value="">All</option><option value="active">Active</option><option value="ended">Ended</option></select></div><div class="fg"><label>Search</label><input id="fSessSearch" placeholder="Room or presenter"></div><button class="btn btn-p" onclick="loadSessions()">Apply</button></div><div id="sessionsMount"><div class="empty">Loading...</div></div></div></section>
-<section class="sec"><div class="sec-h">Users <button class="btn btn-s" onclick="exportMountToCsv('usersMount','users')">Export CSV</button></div><div class="sec-b"><div class="filters"><div class="fg"><label>Role</label><select id="fUserRole"><option value="">All</option><option value="presenter">Presenter</option><option value="student">Student</option><option value="admin">Admin</option></select></div><div class="fg"><label>Search</label><input id="fUserSearch" placeholder="Name or email"></div><button class="btn btn-p" onclick="loadUsers()">Apply</button></div><div id="usersMount"><div class="empty">Loading...</div></div></div></section>
-<section class="sec"><div class="sec-h">Performance Metrics <button class="btn btn-s" onclick="exportMountToCsv('perfMount','performance_metrics_page')">Export CSV</button></div><div class="sec-b"><div class="note">Performance table is paginated to 10 rows per page for readability.</div><div class="filters"><div class="fg"><label>Room ID</label><input id="fPerfRoom" placeholder="Room"></div><div class="fg"><label>Log Type</label><select id="fPerfType"><option value="">All</option><option value="connection">Connection</option><option value="disconnection">Disconnection</option><option value="error">Error</option><option value="warning">Warning</option><option value="info">Info</option><option value="performance">Performance</option><option value="content_share">Content Share</option><option value="screen_share">Screen Share</option><option value="chat">Chat</option><option value="attendance">Attendance</option></select></div><div class="fg"><label>Fetch Limit</label><select id="fPerfLimit"><option value="100">100</option><option value="200" selected>200</option><option value="500">500</option></select></div><button class="btn btn-p" onclick="reloadPerf()">Apply</button></div><div id="perfMount"><div class="empty">Loading...</div></div><div class="pag" id="perfPag"><button class="btn btn-s" id="pPrev" onclick="goPerf(-1)">Previous</button><span id="pInfo"></span><button class="btn btn-s" id="pNext" onclick="goPerf(1)">Next</button></div></div></section>
+<section class="sec"><div class="sec-h">Sessions <button class="btn btn-s" onclick="exportMountToCsv('sessionsMount','sessions')">Export CSV</button></div><div class="sec-b"><div class="filters"><div class="fg"><label>Status</label><select id="fSessStatus"><option value="">All</option><option value="active">Active</option><option value="ended">Ended</option></select></div><div class="fg"><label>Search</label><input id="fSessSearch" placeholder="Room or presenter"></div><button class="btn btn-p" onclick="loadSessions()">Find</button></div><div id="sessionsMount"><div class="empty">Loading...</div></div></div></section>
+<section class="sec"><div class="sec-h">Users <button class="btn btn-s" onclick="exportMountToCsv('usersMount','users')">Export CSV</button></div><div class="sec-b"><div class="filters"><div class="fg"><label>Role</label><select id="fUserRole"><option value="">All</option><option value="presenter">Presenter</option><option value="student">Student</option><option value="admin">Admin</option></select></div><div class="fg"><label>Search</label><input id="fUserSearch" placeholder="Name or email"></div><button class="btn btn-p" onclick="loadUsers()">Find</button></div><div id="usersMount"><div class="empty">Loading...</div></div></div></section>
+<section class="sec"><div class="sec-h">Performance Metrics <button class="btn btn-s" onclick="exportMountToCsv('perfMount','performance_metrics_page')">Export CSV</button></div><div class="sec-b"><div class="note">Performance table is paginated to 10 rows per page for readability.</div><div class="filters"><div class="fg"><label>Room ID</label><input id="fPerfRoom" placeholder="Room"></div><div class="fg"><label>Log Type</label><select id="fPerfType"><option value="">All</option><option value="connection">Connection</option><option value="disconnection">Disconnection</option><option value="error">Error</option><option value="warning">Warning</option><option value="info">Info</option><option value="performance">Performance</option><option value="content_share">Content Share</option><option value="screen_share">Screen Share</option><option value="chat">Chat</option><option value="attendance">Attendance</option></select></div><div class="fg"><label>Fetch Limit</label><select id="fPerfLimit"><option value="100">100</option><option value="200" selected>200</option><option value="500">500</option></select></div><button class="btn btn-p" onclick="reloadPerf()">Find</button></div><div id="perfMount"><div class="empty">Loading...</div></div><div class="pag" id="perfPag"><button class="btn btn-s" id="pPrev" onclick="goPerf(-1)">Previous</button><span id="pInfo"></span><button class="btn btn-s" id="pNext" onclick="goPerf(1)">Next</button></div></div></section>
 <section class="sec"><div class="sec-h">Feedback <button class="btn btn-s" onclick="exportMountToCsv('feedbackMount','feedback')">Export CSV</button></div><div class="sec-b"><div class="filters"><div class="fg"><label>Limit</label><select id="fFbLimit"><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option></select></div><button class="btn btn-p" onclick="loadFeedback()">Refresh</button></div><div id="feedbackMount"><div class="empty">Loading...</div></div></div></section>
-<section class="sec"><div class="sec-h">Admin Maintenance</div><div class="sec-b"><div class="note">Dangerous actions require the admin confirmation code.</div><div class="filters"><div class="fg"><label>Confirmation Code</label><input id="dangerCode" type="password" placeholder="Enter admin confirmation code"></div><div class="fg"><label>Retention Days</label><input id="retentionDays" type="number" min="1" value="30"></div><button class="btn btn-p" onclick="runRetentionCleanup()">Run 30-Day Cleanup</button><button class="btn btn-s" onclick="wipeOperationalData()" style="background:#ffe3e0;color:#8a1f14;border:1px solid #f2bbb4">Delete All Classroom Data</button></div><div class="filters"><div class="fg"><label>Delete Table</label><select id="dangerTable"><option value="attendance">attendance</option><option value="performance_logs">performance_logs</option><option value="user_feedback">user_feedback</option><option value="sessions">sessions</option><option value="users">users</option><option value="admin_users">admin_users</option></select></div><button class="btn btn-s" onclick="deleteSelectedTable()" style="background:#fff2d6;color:#7a4a00;border:1px solid #f0d28a">Delete Selected Table Data</button></div></div></section>
+<section class="sec"><div class="sec-h">Admin Maintenance</div><div class="sec-b"><div class="note">Use the admin confirmation code below when running cleanup or delete actions.</div><div class="maintenance-layout"><div class="filters" style="margin-bottom:0"><div class="fg"><label>Admin Confirmation Code</label><input id="dangerCode" type="password" placeholder="Enter admin confirmation code"></div></div><div class="maintenance-row"><h4>Retention Cleanup</h4><p>Remove older classroom data based on the number of retention days you choose.</p><div class="maintenance-actions"><div class="fg"><label>Retention Days</label><input id="retentionDays" type="number" min="1" value="30"></div><button class="btn btn-p" onclick="runRetentionCleanup()">Run 30-Day Cleanup</button></div></div><div class="maintenance-row"><h4>Bulk Delete</h4><p>Use these actions carefully. They permanently remove classroom records from the selected scope.</p><div class="maintenance-actions"><button class="btn btn-s" onclick="wipeOperationalData()" style="background:#ffe3e0;color:#8a1f14;border:1px solid #f2bbb4">Delete All Classroom Data</button><div class="fg"><label>Delete Table</label><select id="dangerTable"><option value="attendance">attendance</option><option value="performance_logs">performance_logs</option><option value="user_feedback">user_feedback</option><option value="sessions">sessions</option><option value="users">users</option><option value="admin_users">admin_users</option></select></div><button class="btn btn-s" onclick="deleteSelectedTable()" style="background:#fff2d6;color:#7a4a00;border:1px solid #f0d28a">Delete Selected Table Data</button></div></div></div></div></section>
 <script src="/security.js"></script>
 <script>
 if(window.MustMirrorSecurity&&typeof window.MustMirrorSecurity.protectPage==='function'){window.MustMirrorSecurity.protectPage()}
@@ -115,10 +142,10 @@ msg(`CSV exported: ${filePrefix}`,'ok')
 
 async function loadOverview(){const d=await get(`${API_BASE}/admin/overview`);q('sActive').textContent=safe(d?.stats?.activeSessions,0);q('sClients').textContent=safe(d?.stats?.connectedClients,0);q('sUsers').textContent=safe(d?.stats?.totalUsers,0);q('sAttend').textContent=safe(d?.stats?.totalAttendance,0);
 const rooms=Array.isArray(d?.activeRooms)?d.activeRooms:[];if(!rooms.length){q('liveMount').innerHTML='<div class="empty">No active rooms.</div>';return}
-q('liveMount').innerHTML=`<div class="wrap"><table><thead><tr><th>Room</th><th>Host</th><th>Email</th><th>Students</th><th>Status</th><th>Created</th></tr></thead><tbody>${rooms.map(r=>`<tr><td><strong>${esc(safe(r.roomId))}</strong></td><td>${esc(safe(r.presenterName))}</td><td>${esc(safe(r.presenterEmail))}</td><td>${safe(r.studentCount,0)}</td><td>${pillStatus(r.status)}</td><td>${fmt(r.createdAt)}</td></tr>`).join('')}</tbody></table></div>`}
+q('liveMount').innerHTML=`<div class="wrap"><table><thead><tr><th>Room</th><th>Host</th><th>Email</th><th>Total Participants</th><th>Students</th><th>Status</th><th>Created</th></tr></thead><tbody>${rooms.map(r=>`<tr><td><strong>${esc(safe(r.roomId))}</strong></td><td>${esc(safe(r.presenterName))}</td><td>${esc(safe(r.presenterEmail))}</td><td><div class="live-count"><strong>${safe(r.totalParticipants,1)}</strong><span>Host included</span></div></td><td>${safe(r.studentCount,0)}</td><td>${pillStatus(r.status)}</td><td>${fmt(r.createdAt)}</td></tr>`).join('')}</tbody></table></div>`}
 
 async function loadSessions(){const p=new URLSearchParams();const s=q('fSessStatus').value.trim();const x=q('fSessSearch').value.trim();if(s)p.append('status',s);if(x)p.append('search',x);const rows=await get(`${API_BASE}/sessions${p.toString()?`?${p}`:''}`);if(!rows.length){q('sessionsMount').innerHTML='<div class="empty">No sessions found.</div>';return}
-q('sessionsMount').innerHTML=`<div class="wrap"><table><thead><tr><th>Room ID</th><th>Presenter</th><th>Title</th><th>Status</th><th>Participants</th><th>Created</th><th>Duration</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${esc(safe(r.room_id))}</strong></td><td>${esc(safe(r.presenter_name))}</td><td>${esc(safe(r.title))}</td><td>${pillStatus(r.status)}</td><td>${safe(r.participant_count,0)}</td><td>${fmt(r.created_at)}</td><td>${dur(r.created_at,r.ended_at)}</td></tr>`).join('')}</tbody></table></div>`}
+q('sessionsMount').innerHTML=`<div class="wrap"><table><thead><tr><th>Room ID</th><th>Presenter</th><th>Title</th><th>Status</th><th>Total Participants</th><th>Students Seen</th><th>Created</th><th>Duration</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${esc(safe(r.room_id))}</strong></td><td>${esc(safe(r.presenter_name))}</td><td>${esc(safe(r.title))}</td><td>${pillStatus(r.status)}</td><td><div class="live-count"><strong>${safe(r.participant_count,0)}</strong><span>${String(r.status).toLowerCase()==='active'?'Live total':''}</span></div></td><td>${Math.max(0,Number(r.live_student_count||0))}</td><td>${fmt(r.created_at)}</td><td>${dur(r.created_at,r.ended_at)}</td></tr>`).join('')}</tbody></table></div>`}
 
 async function loadUsers(){const p=new URLSearchParams();const r=q('fUserRole').value.trim();const s=q('fUserSearch').value.trim();if(r)p.append('role',r);if(s)p.append('search',s);const rows=await get(`${API_BASE}/users${p.toString()?`?${p}`:''}`);if(!rows.length){q('usersMount').innerHTML='<div class="empty">No users found.</div>';return}
 q('usersMount').innerHTML=`<div class="wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>IP Address</th><th>Created</th><th>Last Active</th></tr></thead><tbody>${rows.map(u=>`<tr><td>${esc(safe(u.name))}</td><td>${esc(safe(u.email))}</td><td>${pillRole(u.role)}</td><td>${esc(safe(u.socket_id))}</td><td>${fmt(u.created_at)}</td><td>${fmt(u.last_active)}</td></tr>`).join('')}</tbody></table></div>`}

@@ -1,5 +1,46 @@
 // Professional Presenter Logic
 
+function normalizePresenterEmail(value = '') {
+    return String(value || '').trim().toLowerCase();
+}
+
+function isValidPresenterEmail(value = '') {
+    const email = normalizePresenterEmail(value);
+    if (!email || email.length > 254 || email.endsWith('.')) return false;
+
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+
+    const [localPart, domain] = parts;
+    if (!localPart || !domain) return false;
+    if (localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')) return false;
+    if (domain.startsWith('.') || domain.endsWith('.') || domain.includes('..')) return false;
+    if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)) return false;
+    if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(domain)) return false;
+
+    return true;
+}
+
+function isValidPresenterName(value = '') {
+    const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+    return /^[A-Za-z][A-Za-z.'-]*(?: [A-Za-z][A-Za-z.'-]*)+$/.test(normalized);
+}
+
+function isValidPresenterTopic(value = '') {
+    const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+    return normalized.length >= 3 && normalized.length <= 120 && /[A-Za-z0-9]/.test(normalized);
+}
+
+function isValidDepartmentName(value = '') {
+    const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+    return normalized.length >= 2 && normalized.length <= 100 && /^[A-Za-z][A-Za-z&()\/,.\- ]*[A-Za-z)]$/.test(normalized);
+}
+
+function isValidPhysicalRoom(value = '') {
+    const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+    return normalized.length >= 2 && normalized.length <= 80 && /^[A-Za-z0-9][A-Za-z0-9/().#,\- ]*[A-Za-z0-9)]$/.test(normalized);
+}
+
 class Presenter {
     constructor() {
         this.socket = null;
@@ -168,20 +209,23 @@ class Presenter {
 
     async createRoom() {
         const details = {
-            name: document.getElementById('presName').value.trim(),
-            email: document.getElementById('presEmail').value.trim().toLowerCase(),
-            topic: document.getElementById('presTopic').value.trim(),
-            department: document.getElementById('presDept').value.trim(),
-            room: document.getElementById('presRoom').value.trim()
+            name: document.getElementById('presName').value.trim().replace(/\s+/g, ' '),
+            email: normalizePresenterEmail(document.getElementById('presEmail').value),
+            topic: document.getElementById('presTopic').value.trim().replace(/\s+/g, ' '),
+            department: document.getElementById('presDept').value.trim().replace(/\s+/g, ' '),
+            room: document.getElementById('presRoom').value.trim().replace(/\s+/g, ' ')
         };
 
         if (!details.name) return alert('Presenter name is required.');
+        if (!isValidPresenterName(details.name)) return alert('Enter the presenter full name using letters only.');
         if (!details.email) return alert('Presenter email is required.');
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailPattern.test(details.email)) return alert('Enter a valid presenter email.');
+        if (!isValidPresenterEmail(details.email)) return alert('Enter a valid presenter email.');
         if (!details.topic) return alert('Lecture topic is required.');
+        if (!isValidPresenterTopic(details.topic)) return alert('Enter a valid lecture topic.');
         if (!details.department) return alert('Department is required.');
+        if (!isValidDepartmentName(details.department)) return alert('Enter a valid department name.');
         if (!details.room) return alert('Physical room or lab is required.');
+        if (!isValidPhysicalRoom(details.room)) return alert('Enter a valid physical room or lab.');
 
         let generatedId = null;
         try {
@@ -331,8 +375,13 @@ class Presenter {
             const allowSystemAudio = typeof app?.isSystemAudioAllowed === 'function'
                 ? app.isSystemAudioAllowed()
                 : true;
+            const requestedProfile = this.getShareQualityProfile();
             this.screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-                video: true, 
+                video: {
+                    width: { ideal: requestedProfile.width },
+                    height: { ideal: requestedProfile.height },
+                    frameRate: { ideal: requestedProfile.frameRate, max: requestedProfile.frameRate }
+                }, 
                 audio: allowSystemAudio
             });
 
@@ -744,15 +793,15 @@ class Presenter {
 
     getShareQualityProfile() {
         if (this.audienceSize >= 40) {
-            return { name: 'xlarge', width: 854, height: 480, frameRate: 4, bitrateKbps: 300 };
+            return { name: 'xlarge', width: 1024, height: 576, frameRate: 5, bitrateKbps: 500 };
         }
         if (this.audienceSize >= 20) {
-            return { name: 'large', width: 960, height: 540, frameRate: 6, bitrateKbps: 450 };
+            return { name: 'large', width: 1280, height: 720, frameRate: 6, bitrateKbps: 850 };
         }
         if (this.audienceSize >= 10) {
-            return { name: 'medium', width: 1024, height: 576, frameRate: 8, bitrateKbps: 700 };
+            return { name: 'medium', width: 1600, height: 900, frameRate: 8, bitrateKbps: 1400 };
         }
-        return { name: 'small', width: 1280, height: 720, frameRate: 12, bitrateKbps: 1200 };
+        return { name: 'small', width: 1920, height: 1080, frameRate: 12, bitrateKbps: 2600 };
     }
 
     shouldMonitorPeerPerformance() {
@@ -844,6 +893,106 @@ class Presenter {
         }
     }
 
+    formatAttendanceDateTime(value) {
+        if (!value) return 'N/A';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'N/A';
+        return date.toLocaleString();
+    }
+
+    formatAttendanceDuration(totalSeconds) {
+        const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
+        const hours = Math.floor(safeSeconds / 3600);
+        const minutes = Math.floor((safeSeconds % 3600) / 60);
+        const seconds = safeSeconds % 60;
+        const parts = [];
+
+        if (hours) parts.push(`${hours} hr${hours === 1 ? '' : 's'}`);
+        if (minutes) parts.push(`${minutes} min`);
+        if (seconds || !parts.length) parts.push(`${seconds} sec`);
+
+        return parts.join(' ');
+    }
+
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    async showAttendanceSummary() {
+        if (!this.roomId) {
+            alert('No active session found');
+            return;
+        }
+
+        const modal = document.getElementById('attendanceSummaryModal');
+        const mount = document.getElementById('attendanceSummaryMount');
+        const meta = document.getElementById('attendanceSummaryMeta');
+        if (!modal || !mount || !meta) return;
+
+        modal.style.display = 'flex';
+        mount.innerHTML = '<div class="attendance-summary-empty">Loading attendance...</div>';
+        meta.textContent = `Room ${this.roomId}`;
+
+        try {
+            const response = await fetch(`/api/session/${this.roomId}/attendance/summary`);
+            const rows = await response.json();
+
+            if (!response.ok) {
+                throw new Error(rows.error || 'Failed to fetch attendance summary');
+            }
+
+            meta.textContent = `Room ${this.roomId} • ${rows.length} student${rows.length === 1 ? '' : 's'}`;
+
+            if (!rows.length) {
+                mount.innerHTML = '<div class="attendance-summary-empty">No attendance records yet.</div>';
+                return;
+            }
+
+            mount.innerHTML = `
+                <div class="attendance-summary-wrap">
+                    <table class="attendance-summary-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Joins</th>
+                                <th>First Joined</th>
+                                <th>Last Seen</th>
+                                <th>Status</th>
+                                <th>Total Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.map((row) => {
+                                const status = String(row.attendance_status || 'Disconnected');
+                                const statusClass = status.toLowerCase() === 'in session' ? 'good' : 'warn';
+                                return `
+                                    <tr>
+                                        <td>${this.escapeHtml(row.name || 'Unknown')}</td>
+                                        <td>${this.escapeHtml(row.email || 'N/A')}</td>
+                                        <td>${Number(row.join_count) || 0}</td>
+                                        <td>${this.escapeHtml(this.formatAttendanceDateTime(row.first_joined_at))}</td>
+                                        <td>${this.escapeHtml(this.formatAttendanceDateTime(row.last_seen_at))}</td>
+                                        <td><span class="${statusClass}">${status}</span></td>
+                                        <td>${this.escapeHtml(this.formatAttendanceDuration(row.total_duration_seconds))}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error loading attendance summary:', error);
+            mount.innerHTML = `<div class="attendance-summary-empty">Failed to load attendance summary. ${error.message || ''}</div>`;
+        }
+    }
+
     endSession() {
         if (!this.roomId) {
             alert('No active session to end');
@@ -884,4 +1033,9 @@ class Presenter {
 const presenter = new Presenter();
 function createRoom() { presenter.createRoom(); }
 function exportAttendance() { presenter.exportAttendance(); }
+function openAttendanceSummaryModal() { presenter.showAttendanceSummary(); }
+function closeAttendanceSummaryModal() {
+    const modal = document.getElementById('attendanceSummaryModal');
+    if (modal) modal.style.display = 'none';
+}
 function endSession() { presenter.endSession(); }

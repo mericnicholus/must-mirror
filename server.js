@@ -232,7 +232,7 @@ app.get('/api/network-info', (req, res) => {
   });
 });
 
-const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 const ROOM_CODE_SEGMENTS = [3, 4, 3];
 
 function generateSecureRoomId() {
@@ -383,21 +383,83 @@ function requireAdminActionCode(req, res, next) {
   return next();
 }
 
+function normalizeEmail(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isValidEmail(value = '') {
+  const email = normalizeEmail(value);
+  if (!email || email.length > 254) return false;
+  if (email.endsWith('.')) return false;
+
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+
+  const [localPart, domain] = parts;
+  if (!localPart || !domain) return false;
+  if (localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')) return false;
+  if (domain.startsWith('.') || domain.endsWith('.') || domain.includes('..')) return false;
+  if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)) return false;
+  if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(domain)) return false;
+
+  return true;
+}
+
+function isValidStudentEmail(value = '') {
+  const email = normalizeEmail(value);
+  if (!isValidEmail(email)) return false;
+
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+
+  return parts[1] === 'std.must.ac.ug';
+}
+
+function isValidPersonName(value = '') {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+  return /^[A-Za-z][A-Za-z.'-]*(?: [A-Za-z][A-Za-z.'-]*)+$/.test(normalized);
+}
+
+function isValidTopic(value = '') {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+  return normalized.length >= 3 && normalized.length <= 120 && /[A-Za-z0-9]/.test(normalized);
+}
+
+function isValidDepartment(value = '') {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+  return normalized.length >= 2 && normalized.length <= 100 && /^[A-Za-z][A-Za-z&()\/,.\- ]*[A-Za-z)]$/.test(normalized);
+}
+
+function isValidLocation(value = '') {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+  return normalized.length >= 2 && normalized.length <= 80 && /^[A-Za-z0-9][A-Za-z0-9/().#,\- ]*[A-Za-z0-9)]$/.test(normalized);
+}
+
+function isValidRoomId(value = '') {
+  return /^[A-Z0-9]{3,6}(?:-[A-Z0-9]{3,6}){1,3}$/.test(String(value || '').trim().toUpperCase());
+}
+
 function validatePresenterDetails(details = {}) {
   if (!String(details.name || '').trim()) return 'Presenter name is required';
+  if (!isValidPersonName(details.name)) return 'Enter the presenter full name using letters only.';
   if (!String(details.email || '').trim()) return 'Presenter email is required';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(details.email || '').trim())) return 'Enter a valid presenter email';
+  if (!isValidEmail(details.email)) return 'Enter a valid presenter email.';
   if (!String(details.topic || details.title || '').trim()) return 'Lecture topic is required';
+  if (!isValidTopic(details.topic || details.title)) return 'Enter a valid lecture topic.';
   if (!String(details.department || details.dept || '').trim()) return 'Department is required';
+  if (!isValidDepartment(details.department || details.dept)) return 'Enter a valid department name.';
   if (!String(details.room || '').trim()) return 'Physical room or lab is required';
+  if (!isValidLocation(details.room)) return 'Enter a valid physical room or lab.';
   return null;
 }
 
 function validateStudentDetails(details = {}) {
   if (!String(details.name || '').trim()) return 'Student name is required';
+  if (!isValidPersonName(details.name)) return 'Enter your full name using letters only.';
   if (!String(details.email || '').trim()) return 'Student email is required';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(details.email || '').trim())) return 'Enter a valid student email';
+  if (!isValidStudentEmail(details.email)) return 'Enter a valid student email ending with @std.must.ac.ug.';
   if (!String(details.roomId || '').trim()) return 'Room ID is required';
+  if (!isValidRoomId(details.roomId)) return 'Enter a valid room ID.';
   return null;
 }
 
@@ -494,18 +556,19 @@ app.get('/api/stats', requireAdminAuth, async (req, res) => {
 app.get('/api/sessions', requireAdminAuth, async (req, res) => {
   try {
     const { status, search } = req.query;
-    let query = 'SELECT * FROM sessions';
+    let query = `
+      SELECT 
+        s.*,
+        COUNT(DISTINCT a.user_id) AS attendance_participant_count
+      FROM sessions s
+      LEFT JOIN attendance a ON a.session_id = s.id
+    `;
     const params = [];
     
-    if (status || search) {
+    if (search) {
       query += ' WHERE';
       const conditions = [];
-      
-      if (status) {
-        conditions.push(' status = ?');
-        params.push(status);
-      }
-      
+
       if (search) {
         conditions.push(' (room_id LIKE ? OR presenter_name LIKE ?)');
         params.push(`%${search}%`, `%${search}%`);
@@ -514,10 +577,27 @@ app.get('/api/sessions', requireAdminAuth, async (req, res) => {
       query += conditions.join(' AND');
     }
     
-    query += ' ORDER BY created_at DESC';
+    query += ' GROUP BY s.id ORDER BY s.created_at DESC';
     
     const sessions = await database.all(query, params);
-    res.json(sessions);
+    const normalizedSessions = sessions.map((session) => {
+      const liveRoom = rooms.get(session.room_id);
+      const liveParticipantCount = liveRoom ? liveRoom.students.size + 1 : null;
+      const attendanceParticipantCount = Number(session.attendance_participant_count || 0);
+      const storedParticipantCount = Number(session.participant_count || 0);
+      const derivedParticipantCount = liveParticipantCount ?? Math.max(storedParticipantCount, attendanceParticipantCount);
+      const normalizedStatus = liveRoom ? 'active' : 'ended';
+
+      return {
+        ...session,
+        status: normalizedStatus,
+        participant_count: derivedParticipantCount,
+        live_student_count: liveRoom ? liveRoom.students.size : Math.max(0, derivedParticipantCount - 1),
+        ended_at: normalizedStatus === 'active' ? null : session.ended_at
+      };
+    }).filter((session) => !status || session.status === status);
+
+    res.json(normalizedSessions);
   } catch (error) {
     console.error('Error fetching sessions:', error);
     res.status(500).json({ error: 'Failed to fetch sessions' });
@@ -583,6 +663,21 @@ app.get('/api/session/:roomId/attendance', async (req, res) => {
   }
 });
 
+app.get('/api/session/:roomId/attendance/summary', async (req, res) => {
+  try {
+    const session = await database.getSession(req.params.roomId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    const attendance = await database.getSessionAttendanceSummary(session.id);
+    res.json(attendance);
+  } catch (error) {
+    console.error('Error fetching attendance summary:', error);
+    res.status(500).json({ error: 'Failed to fetch attendance summary' });
+  }
+});
+
 app.get('/api/session/:roomId/attendance/export', async (req, res) => {
   try {
     const session = await database.getSession(req.params.roomId);
@@ -609,12 +704,13 @@ app.get('/api/admin/overview', requireAdminAuth, async (req, res) => {
       presenterName: room.presenterDetails.name,
       presenterEmail: room.presenterDetails.email,
       studentCount: room.students.size,
+      totalParticipants: room.students.size + 1,
       status: room.status,
       createdAt: room.createdAt,
       sessionId: room.sessionId
     }));
 
-    const totalSessions = await database.get('SELECT COUNT(*) as count FROM sessions WHERE status = "active"');
+    const totalSessions = { count: activeRooms.length };
     const totalUsers = await database.get('SELECT COUNT(*) as count FROM users');
     const totalAttendance = await database.get('SELECT COUNT(*) as count FROM attendance');
 
@@ -1185,8 +1281,8 @@ io.on('connection', (socket) => {
     try {
       if (rooms.has(requestedRoomId)) {
         const room = rooms.get(requestedRoomId);
-        socket.join(requestedRoomId);
-        room.students.add(socket.id);
+      socket.join(requestedRoomId);
+      room.students.add(socket.id);
         const connectionAddress = getSocketConnectionAddress(socket);
         
         // Check if user already exists in database
@@ -1213,18 +1309,27 @@ io.on('connection', (socket) => {
         
         const roomParticipants = participants.get(requestedRoomId);
         
-        // Prevent duplicate email registrations in the same room
-        let isDuplicate = false;
+        // Allow same student email to recover cleanly if they reconnect after
+        // a network drop or focus-policy disconnect.
+        let previousSocketId = null;
         for (const [id, p] of roomParticipants) {
           if (p.email === normalizedStudentDetails.email) {
-            isDuplicate = true;
+            previousSocketId = id;
             break;
           }
         }
-        
-        if (isDuplicate) {
-          socket.emit('room-error', 'This email is already registered in this room');
-          return;
+
+        if (previousSocketId) {
+          roomParticipants.delete(previousSocketId);
+          room.students.delete(previousSocketId);
+          await database.updateAttendanceLeave(room.sessionId, studentId);
+
+          const staleSocket = io.sockets.sockets.get(previousSocketId);
+          if (staleSocket) {
+            staleSocket.leave(requestedRoomId);
+            staleSocket.emit('room-error', 'Your session was replaced by a new connection for the same student.');
+            staleSocket.disconnect(true);
+          }
         }
         
         // Register student in memory
@@ -1239,9 +1344,10 @@ io.on('connection', (socket) => {
         });
 
         // Update participant count in database
-        await database.updateParticipantCount(requestedRoomId, roomParticipants.size);
+        await database.updateParticipantCount(requestedRoomId, roomParticipants.size + 1);
 
-        // Mark attendance for the student
+        // Mark attendance for the student. Rejoins create a new segment that
+        // will be summed later in attendance exports and summaries.
         await database.markAttendance(room.sessionId, studentId);
 
         console.log(`Student ${normalizedStudentDetails.name} joined room ${requestedRoomId}`);
@@ -1612,7 +1718,7 @@ io.on('connection', (socket) => {
           roomParticipants.delete(socket.id);
           
           // Update participant count in database
-          await database.updateParticipantCount(roomId, roomParticipants.size);
+          await database.updateParticipantCount(roomId, roomParticipants.size + 1);
           
           // Update attendance when student leaves
           if (studentData && room.sessionId) {

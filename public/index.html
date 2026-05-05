@@ -21,9 +21,14 @@
                 
                 <div id="activeSessionInfo" class="session-badge" style="display: none;">
                     <span class="status-dot"></span>
-                    <span id="displayRoomId">Room: ---</span>
-                    <span style="opacity: 0.3; margin: 0 4px;">|</span>
-                    <span id="connectionStatusText">Live</span>
+                    <div class="session-badge-copy">
+                        <span class="session-badge-label"></span>
+                        <div class="session-badge-meta">
+                            <span id="displayRoomId">---</span>
+                            <span class="session-divider" aria-hidden="true"></span>
+                            <span id="connectionStatusText">Live</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="header-actions">
@@ -120,9 +125,14 @@
                         </div>
 
                         <div id="attendanceExportContainer" class="sidebar-section" style="display: none;">
-                            <button class="btn btn-success btn-block" onclick="exportAttendance()" style="height: 44px; font-size: 0.9rem; font-weight: 600;">
-                                Export Attendance
-                            </button>
+                            <div style="display:flex;flex-direction:column;gap:10px;">
+                                <button class="btn btn-secondary btn-block" onclick="openAttendanceSummaryModal()" style="height: 44px; font-size: 0.9rem; font-weight: 600;">
+                                    View Attendance
+                                </button>
+                                <button class="btn btn-success btn-block" onclick="exportAttendance()" style="height: 44px; font-size: 0.9rem; font-weight: 600;">
+                                    Export Attendance
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </aside>
@@ -139,54 +149,54 @@
                         <video id="mainVideo" autoplay playsinline></video>
                         <audio id="remoteAudio" autoplay></audio>
                         <div id="presenterInfoOverlay" class="info-overlay" style="display: none;"></div>
+                        <div class="video-chrome">
+                            <div class="action-bar" style="display: none;">
+                                <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Turn on microphone" aria-label="Turn on microphone">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                                    </svg>
+                                    <span class="tooltip">Turn on microphone</span>
+                                </button>
+                                <button id="shareBtn" class="icon-btn" onclick="toggleShare()" title="Share screen" aria-label="Share screen">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                                        <polyline points="16 10 12 6 8 10"></polyline>
+                                        <line x1="12" y1="6" x2="12" y2="14"></line>
+                                    </svg>
+                                    <span class="tooltip">Share screen</span>
+                                </button>
+                                <button id="chatBtn" class="icon-btn" onclick="toggleChat()" title="Chat with everyone" aria-label="Chat with everyone">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                        <line x1="9" y1="10" x2="9.01" y2="10"></line>
+                                        <line x1="15" y1="10" x2="15.01" y2="10"></line>
+                                    </svg>
+                                    <span class="tooltip">Chat with everyone</span>
+                                </button>
+                                <button class="icon-btn" onclick="openFeedbackModal()" title="Give feedback">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                    <span class="tooltip">Give feedback</span>
+                                </button>
+                                <button class="icon-btn" onclick="toggleFullscreen()" title="Fullscreen">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                                    </svg>
+                                    <span class="tooltip">Fullscreen</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- SESSION TIMER -->
                     <div id="sessionTimer" class="session-timer" style="display: none;">
                         <span id="timerDisplay">00:00:00</span>
-                    </div>
-
-                    <!-- ACTION BAR - Circular Icon Style -->
-                    <div class="action-bar" style="display: none;">
-                        <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Turn on microphone" aria-label="Turn on microphone">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                                <line x1="12" y1="19" x2="12" y2="23"></line>
-                                <line x1="8" y1="23" x2="16" y2="23"></line>
-                            </svg>
-                            <span class="tooltip">Turn on microphone</span>
-                        </button>
-                        <button id="shareBtn" class="icon-btn" onclick="toggleShare()" title="Share screen" aria-label="Share screen">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                                <line x1="8" y1="21" x2="16" y2="21"></line>
-                                <line x1="12" y1="17" x2="12" y2="21"></line>
-                                <polyline points="16 10 12 6 8 10"></polyline>
-                                <line x1="12" y1="6" x2="12" y2="14"></line>
-                            </svg>
-                            <span class="tooltip">Share screen</span>
-                        </button>
-                        <button id="chatBtn" class="icon-btn" onclick="toggleChat()" title="Chat with everyone" aria-label="Chat with everyone">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                                <line x1="9" y1="10" x2="9.01" y2="10"></line>
-                                <line x1="15" y1="10" x2="15.01" y2="10"></line>
-                            </svg>
-                            <span class="tooltip">Chat with everyone</span>
-                        </button>
-                        <button class="icon-btn" onclick="openFeedbackModal()" title="Give feedback">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                            </svg>
-                            <span class="tooltip">Give feedback</span>
-                        </button>
-                        <button class="icon-btn" onclick="toggleFullscreen()" title="Fullscreen">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                            </svg>
-                            <span class="tooltip">Fullscreen</span>
-                        </button>
                     </div>
                 </div>
 
@@ -258,6 +268,26 @@
         </div>
     </div>
 
+    <!-- ATTENDANCE SUMMARY MODAL -->
+    <div id="attendanceSummaryModal" class="modal-overlay" style="display: none;">
+        <div class="attendance-modal-card">
+            <div class="attendance-modal-header">
+                <div>
+                    <h3>Attendance Summary</h3>
+                    <p id="attendanceSummaryMeta">Review joined students before export.</p>
+                </div>
+                <button class="modal-close-btn" onclick="closeAttendanceSummaryModal()">&times;</button>
+            </div>
+            <div class="attendance-modal-content">
+                <div id="attendanceSummaryMount" class="attendance-summary-empty">Loading attendance...</div>
+            </div>
+            <div class="attendance-modal-footer">
+                <button class="btn btn-secondary" onclick="closeAttendanceSummaryModal()">Close</button>
+                <button class="btn btn-success" onclick="exportAttendance()">Export CSV</button>
+            </div>
+        </div>
+    </div>
+
     <!-- QR CODE MODAL -->
     <div id="qrModal" class="modal-overlay" style="display: none;">
         <div class="qr-modal-card">
@@ -270,7 +300,7 @@
                     <div id="qrModalCode"></div>
                 </div>
                 <p style="font-size: 1rem; color: var(--text); margin-bottom: 16px; text-align: center;">
-                    Students can scan this code with their smartphone or tablet camera to join the presentation instantly.
+                    Scan to join
                 </p>
                 <div class="qr-modal-room-info">
                     <strong>Room ID:</strong> <span id="qrModalRoomId"></span>
@@ -417,6 +447,15 @@
                     closeQRModal();
                 }
             });
+
+            const attendanceSummaryModal = document.getElementById('attendanceSummaryModal');
+            if (attendanceSummaryModal) {
+                attendanceSummaryModal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeAttendanceSummaryModal();
+                    }
+                });
+            }
             
             // Close chat panel when clicking outside (optional)
             document.addEventListener('click', function(e) {

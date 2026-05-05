@@ -730,8 +730,13 @@ class Database {
                     status = "active",
                     created_at = CURRENT_TIMESTAMP,
                     ended_at = NULL,
-                    participant_count = 0`,
+                    participant_count = 1`,
                 [roomId, presenterId, presenterName, title]
+            );
+
+            await this.run(
+                'UPDATE sessions SET participant_count = 1 WHERE room_id = ?',
+                [roomId]
             );
 
             const session = await this.get('SELECT id FROM sessions WHERE room_id = ?', [roomId]);
@@ -1093,22 +1098,84 @@ class Database {
         `, [sessionId]);
     }
 
+    async getSessionAttendanceSummary(sessionId) {
+        return await this.all(`
+            SELECT
+                u.id AS user_id,
+                u.name,
+                u.email,
+                MIN(a.joined_at) AS first_joined_at,
+                MAX(COALESCE(a.left_at, CURRENT_TIMESTAMP)) AS last_seen_at,
+                COUNT(a.id) AS join_count,
+                CASE
+                    WHEN SUM(CASE WHEN a.left_at IS NULL THEN 1 ELSE 0 END) > 0 THEN 'In session'
+                    ELSE 'Disconnected'
+                END AS attendance_status,
+                SUM(
+                    MAX(
+                        0,
+                        CAST(strftime('%s', COALESCE(a.left_at, CURRENT_TIMESTAMP)) AS INTEGER) -
+                        CAST(strftime('%s', a.joined_at) AS INTEGER)
+                    )
+                ) AS total_duration_seconds
+            FROM attendance a
+            JOIN users u ON a.user_id = u.id
+            WHERE a.session_id = ?
+            GROUP BY u.id, u.name, u.email
+            ORDER BY MIN(a.joined_at) ASC
+        `, [sessionId]);
+    }
+
+    formatAttendanceDateTime(value) {
+        if (!value) return 'N/A';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'N/A';
+        return date.toLocaleString();
+    }
+
+    formatAttendanceDuration(totalSeconds) {
+        const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
+        const hours = Math.floor(safeSeconds / 3600);
+        const minutes = Math.floor((safeSeconds % 3600) / 60);
+        const seconds = safeSeconds % 60;
+
+        const parts = [];
+        if (hours) parts.push(`${hours} hr${hours === 1 ? '' : 's'}`);
+        if (minutes) parts.push(`${minutes} min`);
+        if (seconds || !parts.length) parts.push(`${seconds} sec`);
+
+        return parts.join(' ');
+    }
+
     async exportAttendanceCSV(sessionId) {
-        const attendance = await this.getSessionAttendance(sessionId);
+        const attendance = await this.getSessionAttendanceSummary(sessionId);
         const session = await this.getSessionByDbId(sessionId);
         
-        let csv = `Attendance Report - ${session.room_id}\n`;
-        csv += `Session: ${session.title || 'N/A'}\n`;
-        csv += `Presenter: ${session.presenter_name}\n`;
-        csv += `Date: ${new Date(session.created_at).toLocaleString()}\n\n`;
-        csv += `Name,Email,Joined At,Left At,Duration (minutes)\n`;
+        let csv = '\ufeff';
+        csv += `Attendance Report,${session.room_id}\n`;
+        csv += `Session Title,${JSON.stringify(session.title || 'N/A')}\n`;
+        csv += `Presenter,${JSON.stringify(session.presenter_name || 'N/A')}\n`;
+        csv += `Session Started,${JSON.stringify(this.formatAttendanceDateTime(session.created_at))}\n`;
+        csv += `Exported At,${JSON.stringify(this.formatAttendanceDateTime(new Date().toISOString()))}\n\n`;
+        csv += `Name,Email,Join Count,First Joined,Last Seen,Status,Total Time,Total Minutes\n`;
         
         attendance.forEach(record => {
-            const joinedAt = new Date(record.joined_at).toLocaleString();
-            const leftAt = record.left_at ? new Date(record.left_at).toLocaleString() : 'Still in session';
-            const duration = record.duration_minutes ?? 'N/A';
-            
-            csv += `"${record.name}","${record.email}","${joinedAt}","${leftAt}","${duration}"\n`;
+            const firstJoinedAt = this.formatAttendanceDateTime(record.first_joined_at);
+            const lastSeenAt = this.formatAttendanceDateTime(record.last_seen_at);
+            const totalSeconds = Math.max(0, Number(record.total_duration_seconds) || 0);
+            const totalMinutes = (totalSeconds / 60).toFixed(2);
+            const totalTime = this.formatAttendanceDuration(totalSeconds);
+
+            csv += [
+                JSON.stringify(record.name || 'Unknown'),
+                JSON.stringify(record.email || 'N/A'),
+                JSON.stringify(Number(record.join_count) || 0),
+                JSON.stringify(firstJoinedAt),
+                JSON.stringify(lastSeenAt),
+                JSON.stringify(record.attendance_status || 'N/A'),
+                JSON.stringify(totalTime),
+                JSON.stringify(totalMinutes)
+            ].join(',') + '\n';
         });
         
         return csv;
